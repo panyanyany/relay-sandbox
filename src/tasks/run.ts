@@ -1,3 +1,4 @@
+import { readCredential } from "../config/credentials.js";
 import { requireRuntimeOwner } from "../environments/ownership.js";
 import { withTaskLock } from "./lock.js";
 import { trafficGuidance } from "../traffic/guidance.js";
@@ -90,7 +91,7 @@ async function runTaskLocked(
   const profile = profileSchema.parse(
     await readJson(join(taskPath(home, id), "profile.json")),
   );
-  const key = process.env[profile.apiKeyEnv];
+  const key = (await readCredential(home, profile))?.key;
   if (!key) throw new Error("专用中转站凭据不可用");
   if ((await taskProjectMode(home, task)) === "direct")
     await startDirectProject(home, task, profile);

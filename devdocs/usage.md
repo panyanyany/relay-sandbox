@@ -19,6 +19,8 @@ node dist/src/cli/main.js doctor
 
 ## 配置模型档案
 
+首次使用优先让宿主 AI 调用配置 MCP 工具，按[中转配置](relay-setup.md)完成项目选择、地址和模型设置及本机隐藏凭据录入。以下 YAML 方法适用于手动管理档案。
+
 默认状态目录为 `~/.local/share/relay-sandbox`。可用全局参数 `--home <目录>` 指定其他位置。创建 `profiles/relay-default.yaml`，限制目录和文件权限：
 
 ```yaml
@@ -30,7 +32,7 @@ image: sha256:<镜像的64位摘要>
 networkImage: sha256:<相同镜像的64位摘要>
 ```
 
-用安全的环境注入方式提供 `RELAY_DEVELOPMENT_KEY`。档案保存环境变量名称，不保存密钥值；不要把真实密钥写进项目、命令参数或公开文档。任务创建时冻结档案及项目配置，后续修改只影响新任务。
+用安全的环境注入方式提供 `RELAY_DEVELOPMENT_KEY`，或执行配置查询返回的 `credential-set` 命令隐藏录入本机私有凭据。环境变量优先，私有文件其次。档案保存环境变量名称，不保存密钥值；不要把真实密钥写进项目、命令参数或公开文档。任务创建时冻结档案及项目配置，后续修改只影响新任务。
 
 | 开发 Agent  | `type`        | 档案 `protocol`     |
 | ----------- | ------------- | ------------------- |
@@ -105,7 +107,7 @@ node dist/src/cli/main.js cleanup <任务ID>
 
 运行 `host-config <项目标识>`，Codex 片段会为本服务设置工具授权和档案环境变量转发，合入前确认信任该本地服务；按照项目 `hostAgent.type` 输出 Codex TOML、Claude Code JSON 或 OpenCode JSON 的 MCP 配置片段。手动合入现有配置，工具不会覆盖用户配置。生成配置基于当前构建目录；移动安装目录后重新生成。
 
-MCP 命令为 `node <绝对构建目录>/src/cli/main.js --home <状态目录> mcp`。工具包括 `get_capabilities`、`wait_task`、`get_telemetry`、`get_audit`、`get_delivery_plan`、`report_task`、`start_task`、`run_task`、`get_task`、`get_result`、`prepare_delivery`、`review_task`、`apply_task`、`cancel_task`、`cleanup_task` 、`start_service`、`check_candidate`、`resume_task` 和 `read_artifact`。`start_task` 只创建环境；开发由 `run_task`、`prepare_delivery`、`check_candidate` 派发后台宿主进程并立即返回，可用 `wait_task` 等待或用 `get_task` 查询。排队状态 queued 会立即使旧审查失效。仅宿主可注册项目；MCP 不接收任意宿主项目路径、挂载或 Docker 权限参数。
+MCP 命令为 `node <绝对构建目录>/src/cli/main.js --home <状态目录> mcp`。工具包括 `get_capabilities`、`wait_task`、`get_telemetry`、`get_audit`、`get_delivery_plan`、`report_task`、`start_task`、`run_task`、`get_task`、`get_result`、`prepare_delivery`、`review_task`、`apply_task`、`cancel_task`、`cleanup_task` 、`start_service`、`check_candidate`、`resume_task` 和 `read_artifact`。`start_task` 只创建环境；开发由 `run_task`、`prepare_delivery`、`check_candidate` 派发后台宿主进程并立即返回，可用 `wait_task` 等待或用 `get_task` 查询。排队状态 queued 会立即使旧审查失效。首次配置可由宿主 AI 在用户明确授权后通过 `initialize_relay` 注册项目目录；任务仍只接收已注册标识，MCP 不接收挂载或 Docker 权限参数。
 
 ## 让宿主 Agent 选择等待方式
 
@@ -127,7 +129,7 @@ MCP 初始化说明会提示宿主先调用 `get_capabilities`。每个工具都
 
 等待默认 25 秒，支持 1–55 秒。取消调用只结束等待，要停止任务使用 `cancel_task`。服务端每 250 毫秒读取任务快照，期间不调用模型、不占用任务操作锁。游标是快照内容摘要，用于检测最新变化，不是事件日志；短暂的中间状态可能合并，不提供逐事件重放。
 
-当前能力明确声明 `eventHooks`、`pushNotifications`、`nativeMcpTasks`、`hostWakeup` 均不支持。暂时只能选择有界等待或查询。后续实现事件机制后，仍需同时验证服务端事件能力和宿主续接能力，才能选择事件方式。普通 MCP 通知不能据此视作宿主 AI 自动唤醒。
+当前支持任务资源订阅和面向已连接订阅者的更新通知。客户端确认可消费通知并续接时，可选择事件方式；接入步骤和限制见[任务事件](task-events.md)。`nativeMcpTasks`、`hostWakeup` 仍不支持。普通 MCP 通知不等于宿主 AI 自动唤醒；未验证客户端续接时继续使用有界等待或查询。
 
 能力声明区分报告生成与用户输出。结束时调用 `report_task`，输出绑定事实的 `reportId`、`userMessage`。详细流程及实际输出校验见[异常上报](user-reporting.md)。定时指标和资源回收见[指标与清理](observability.md)。
 

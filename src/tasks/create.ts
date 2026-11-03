@@ -1,3 +1,4 @@
+import { readCredential } from "../config/credentials.js";
 import { formatError } from "../audit/redaction.js";
 import { acquireEnvironment } from "../environments/acquire.js";
 import { stopTaskResources } from "./cleanup.js";
@@ -30,8 +31,11 @@ export async function createTask(
   const projectRoot = await resolveProject(home, projectId);
   const config = await loadConfig(projectRoot);
   const profile = await loadProfile(home, config.developmentAgent.profile);
-  if (!process.env[profile.apiKeyEnv])
-    throw new Error(`缺少专用中转站凭据环境变量: ${profile.apiKeyEnv}`);
+  const credential = await readCredential(home, profile);
+  if (!credential)
+    throw new Error(
+      `缺少专用中转站凭据: ${profile.apiKeyEnv}；请使用配置查询返回的本机credential-set命令`,
+    );
   const id = randomUUID(),
     now = new Date().toISOString();
   const task: Task = {
@@ -134,7 +138,7 @@ export async function createTask(
     }
     task.state = "failed";
     // 保留准备与收尾的完整脱敏原因链，不能只存 AggregateError 的标题。
-    task.error = formatError(error, [process.env[profile.apiKeyEnv] ?? ""]);
+    task.error = formatError(error, [credential.key]);
     await saveTask(home, task);
     throw error;
   }

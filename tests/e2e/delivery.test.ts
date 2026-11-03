@@ -12,6 +12,7 @@ import { checkAndRepair } from "../../src/tasks/check-and-repair.js";
 import { prepareDelivery } from "../../src/tasks/prepare.js";
 import { applyTask, reviewTask } from "../../src/tasks/deliver.js";
 import { cleanupTask } from "../../src/tasks/cleanup.js";
+import { saveCredential } from "../../src/config/credentials.js";
 // 本地中转站只返回确定性响应；不使用宿主订阅或真实 API 密钥。
 test.skipIf(process.env.RELAY_DOCKER_TEST !== "1").each([
   ["codex", "responses", "pass"],
@@ -78,7 +79,13 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1").each([
         networkImage: image,
       }),
     );
-    process.env.RELAY_FIXTURE_KEY = "fake-e2e-key";
+    // Claude 分支验证私有凭据文件也能贯通创建任务和启动 Agent。
+    if (type === "claude-code") {
+      delete process.env.RELAY_FIXTURE_KEY;
+      await saveCredential(home, "RELAY_FIXTURE_KEY", "fake-e2e-key");
+    } else {
+      process.env.RELAY_FIXTURE_KEY = "fake-e2e-key";
+    }
     await registerProject(home, "fixture", project);
     const task = await createTask(
       home,

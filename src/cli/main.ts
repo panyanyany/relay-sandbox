@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { registerCredentialCommands } from "./credentials.js";
 import { readEnvironment } from "../environments/store.js";
 import {
   deleteEnvironment,
@@ -46,6 +47,7 @@ const program = new Command()
     join(homedir(), ".local/share/relay-sandbox"),
   );
 const home = (): string => resolve(program.opts<{ home: string }>().home);
+registerCredentialCommands(program, home);
 const show = (value: unknown): void => {
   console.log(redact(JSON.stringify(value, null, 2)));
 };

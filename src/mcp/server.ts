@@ -1,3 +1,5 @@
+import { registerRelaySetup } from "./relay-setup.js";
+import { registerTaskEvents } from "./task-events.js";
 import { readEnvironment } from "../environments/store.js";
 import {
   deleteEnvironment,
@@ -23,7 +25,7 @@ import { loadAudit } from "../audit/load.js";
 import { telemetryStatus } from "../monitoring/status.js";
 import { prepareUserReport } from "../reporting/user-report.js";
 import { taskResult, readArtifact, deliveryPlanPage } from "../tasks/result.js";
-// MCP 仅接收已注册项目与任务标识，不提供任意 shell、挂载或路径参数。
+// 任务仅使用已注册项目；首次初始化可在用户明确授权后注册目录，不提供任意shell或挂载。
 export async function serveMcp(home: string): Promise<void> {
   const server = new McpServer(
     { name: "relay-sandbox", version: "0.1.0" },
@@ -31,6 +33,8 @@ export async function serveMcp(home: string): Promise<void> {
       instructions: serverInstructions,
     },
   );
+  registerTaskEvents(server, home);
+  registerRelaySetup(server, home);
   // 工具错误保留调用栈，同时按 MCP 返回 isError；stdout 始终只有协议消息。
   const text = async (operation: () => Promise<unknown>) => {
     try {

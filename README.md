@@ -13,6 +13,7 @@
 | 任务 | 文档 |
 | --- | --- |
 | 安装、配置、运行与排障 | [运行说明](devdocs/usage.md) |
+| 让 AI 配置中转站或生成私有配置模板 | [中转配置](devdocs/relay-setup.md) |
 | 选择默认隔离或直接读写原项目 | [项目访问方式](devdocs/project-access.md) |
 | 配置宿主授权、资源共享及可选诱饵 | [行为策略](devdocs/behavior-policy.md) |
 | 查看实际测试与剩余缺口 | [实现验证记录](devdocs/implementation-validation.md) |

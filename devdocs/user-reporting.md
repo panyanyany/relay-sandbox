@@ -35,7 +35,7 @@ RELAY_HOST_REPORT_TEST=1 RELAY_ATTACK_EVIDENCE_DIR=.local/evidence pnpm exec vit
 
 Codex 测试通过启动参数只信任本项目 MCP，并显式传入开发侧所需的假凭据环境变量名称，不修改用户现有配置。`host-config` 生成的 Codex 片段包含该服务的 `default_tools_approval_mode="approve"` 及档案对应的 `env_vars`，用于授权本服务工具和转发指定开发凭据；合入前需确认信任本地服务。该配置依据 [OpenAI 官方 MCP 配置说明](https://learn.chatgpt.com/docs/extend/mcp)。宿主 shell 在测试中禁用。
 
-Claude Code 和 OpenCode 宿主可使用相同 MCP 协议，但其完整用户上报会话及输出回执尚未完成同等验证。事件钩子和宿主自动唤醒仍不支持。
+Claude Code 和 OpenCode 宿主可使用相同 MCP 协议，但其完整用户上报会话及输出回执尚未完成同等验证。任务事件订阅已支持，见[任务事件](task-events.md)；宿主自动唤醒仍未支持，客户端续接须独立验证。
 
 ## 阅读行为策略结果
 

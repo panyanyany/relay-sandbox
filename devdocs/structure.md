@@ -32,10 +32,15 @@ relay-sandbox/
 │   ├── clean-build.mjs         # 构建前清除旧模块
 │   └── build-assets.mjs        # 复制六项受控Python辅助脚本到构建目录
 ├── src/
-│   ├── cli/main.ts             # CLI 输入和输出
+│   ├── cli/
+│   │   ├── main.ts             # CLI 输入和输出
+│   │   └── credentials.ts      # 本机交互终端隐藏输入专用密钥
 │   ├── mcp/
 │   │   ├── server.ts           # stdio 工具、中文能力说明及参数校验
-│   │   └── capabilities.ts     # 已实现能力与等待方式选择指引
+│   │   ├── relay-setup.ts      # 中转配置查询、设置与检查工具
+│   │   ├── capabilities.ts     # 已实现能力与等待方式选择指引
+│   │   ├── task-events.ts      # 任务资源、订阅协议、工具和连接关闭入口
+│   │   └── task-subscriptions.ts # 连接级初始化、实例隔离、故障状态与监听清理
 │   ├── permissions/            # 宿主授权、严格校验及冻结摘要
 │   │   └── contract.ts         # 冻结快照结构与序列化容量约定
 │   ├── resources/              # 安全路径、独立副本及直接挂载
@@ -43,7 +48,14 @@ relay-sandbox/
 │   ├── traffic/                # 代理、显式客户端、公共文件安装及入口提示
 │   │   └── readiness.ts        # 本地请求验证真实插件剥离内部头
 │   ├── config/                 # 严格 YAML 配置、私有档案及摘要
-│   ├── projects/registry.ts    # 显式宿主项目注册
+│   │   ├── relay-template.ts   # 私有模板校验与敏感解析警告保护
+│   │   ├── relay-initialize.ts # 首次初始化、目录授权与私有模板导入
+│   │   ├── relay-setup.ts      # 项目发现、独立档案与保留注释的配置更新
+│   │   ├── relay-check.ts      # 默认本机检查及显式联网小请求
+│   │   └── credentials.ts      # 环境注入与本机私有凭据、权限校验
+│   ├── projects/
+│   │   ├── registry.ts         # 项目注册、实际路径和创建更新时间元数据
+│   │   └── lock.ts             # 注册、配置、凭据与模板收尾共用排他锁
 │   ├── environments/           # 独立于任务的项目持久环境
 │   │   ├── store.ts            # 环境记录及项目排他锁
 │   │   ├── acquire.ts          # 边界核验、借用和复用
@@ -83,13 +95,15 @@ relay-sandbox/
 │   ├── delivery/               # 合并、检查事实、放行策略、应用与故障诊断
 │   └── storage/                # 原子 JSON、JSONL、摘要及清理错误保留
 ├── tests/
-│   ├── unit/                   # 配置、交付、文件、路径攻击、等待及 MCP 握手
+│   ├── unit/                   # 配置、交付、文件、路径攻击、等待、MCP 握手及跨进程事件
 │   ├── integration/            # 真实 Docker、服务网络、内核采集及恢复
 │   ├── e2e/                    # 三种实际 Agent 的假中转站交付、有限返工、显式真实接口及恶意代码审核测试
 │   ├── helpers/               # 真实宿主 CLI 会话与输出捕获
 │   └── fixtures/               # 假凭据协议服务，不调用真实计费 API
 ├── devdocs/                    # 功能说明、需求、方案与验证范围
 │   ├── persistent-environments.md # 默认保留、同步及环境生命周期
+│   ├── task-events.md          # 任务资源订阅及宿主续接边界
+│   ├── relay-setup.md          # MCP中转配置与本机隐藏凭据录入
 │   ├── maintenance.md          # 维护修复契约、错误示范及回归验证
 │   ├── project-access.md       # 默认隔离、宿主直接挂载与事后检查
 │   └── traffic-correlation.md  # 诱饵命中关联、进程声明及证据边界

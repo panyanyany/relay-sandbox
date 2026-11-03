@@ -37,7 +37,7 @@ test("stdio MCP 可发现工具，不能注册任意宿主路径", async () => {
       .parse(capabilities.content);
     const capability = JSON.parse(capabilityContent[0]!.text);
     expect(capability.observation.boundedWait.supported).toBe(true);
-    expect(capability.observation.eventHooks.supported).toBe(false);
+    expect(capability.observation.eventHooks.supported).toBe(true);
     expect(capability.observation.hostWakeup.supported).toBe(false);
     expect(capability.permissions.source).toBe("host_only");
     expect(capability.permissions.mutableDuringTask).toBe(false);
@@ -47,7 +47,18 @@ test("stdio MCP 可发现工具，不能注册任意宿主路径", async () => {
     expect(capability.trafficAudit.interception).toBe("explicit_helpers_only");
     expect(capability.trafficAudit.failureBlocksCommunication).toBe(false);
 
-    for (const name of ["get_capabilities", "wait_task"]) {
+    for (const name of [
+      "get_capabilities",
+      "wait_task",
+      "subscribe_task_events",
+      "unsubscribe_task_events",
+      "get_task_event_subscription",
+      "initialize_relay",
+      "import_relay_configuration",
+      "get_relay_configuration",
+      "configure_relay",
+      "check_relay_configuration",
+    ]) {
       expect(tools.tools.map((tool) => tool.name)).toContain(name);
     }
     expect(tools.tools.map((tool) => tool.name)).toContain("prepare_delivery");
