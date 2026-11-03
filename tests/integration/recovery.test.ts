@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
@@ -24,7 +24,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
     const task: Task = {
       id,
       projectId: "test",
-      projectRoot: "/unused",
+      projectRoot: join(home, "project"),
       prompt: "fixture",
       config,
       configDigest: "config",
@@ -37,6 +37,9 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
       ...handle,
     };
     try {
+      await mkdir(task.projectRoot);
+      await mkdir(join(taskPath(home, id), "baseline"), { recursive: true });
+      await writeFile(join(task.projectRoot, "host-new.txt"), "host update");
       await saveTask(home, task);
       const root = taskPath(home, id);
       await writeJson(join(root, "profile.json"), {
@@ -60,7 +63,18 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         identity: "missing",
         expiresAt: new Date(0).toISOString(),
       });
+      task.state = "preparing";
+      task.recoveryPending = true;
+      task.recoveryDispatch = "stale-dispatch";
+      task.workspaceOperation = true;
+      await saveTask(home, task);
       expect(await superviseOnce(home)).toContain(`interrupted:${id}`);
+      const supervised = await getTask(home, id);
+      expect(supervised.recoveryPending).toBeUndefined();
+      expect(supervised.workspaceOperation).toBeUndefined();
+      await expect(resumeTask(home, id, "stale-dispatch")).rejects.toThrow(
+        "任务不可恢复",
+      );
       expect((await getTask(home, id)).state).toBe("interrupted");
       expect(
         (await docker.getContainer(handle.containerId).inspect()).State.Running,
@@ -78,6 +92,18 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
           )
         ).output,
       ).toContain("retained");
+      expect(
+        (
+          await execute(
+            docker,
+            handle.containerId,
+            ["cat", "host-new.txt"],
+            {},
+            5000,
+            4096,
+          )
+        ).output,
+      ).toContain("host update");
       const running = await getTask(home, id);
       running.state = "running";
       await saveTask(home, running);

@@ -87,10 +87,13 @@ relay-sandbox/
 │   │   ├── garbage-collection.ts # 到期资源、报告及指标清理计划
 │   │   ├── wait.ts             # 快照版本游标与可取消的有界等待
 │   │   ├── lock.ts             # 任务互斥、进程身份及租约
+│   │   ├── delivery-baseline.ts # 交付有效基线定位，初始快照留作证据
+│   │   ├── resume-workspace.ts  # 恢复三方同步、独立宿主检查点及写入中断保护
 │   │   ├── recovery.ts         # 失联协调、恢复与到期回收
 │   │   └── supervisor.ts       # 独立监督器循环
 │   │   └── artifact-state.ts   # 结果与候选失效、当前收集代次及确认守卫
 │   ├── workspace/              # 受控文件读取、完整快照、清单和差异
+│   │   ├── sync-operations.ts  # Git 管理目录、工作区替换和宿主基线推进的共享操作
 │   │   ├── stable-file.ts      # 固定缓冲区安全读取、流式摘要与共享采集限制
 │   │   └── access.ts           # 主项目冻结访问模式、挂载及目录身份核验
 │   ├── docker/                 # 运行模板、资源限制、归档、执行及服务
@@ -113,6 +116,10 @@ relay-sandbox/
 │   └── storage/                # 原子 JSON、JSONL、摘要及清理错误保留
 ├── tests/
 │   ├── unit/                   # 配置、交付、文件、路径攻击、等待、MCP 握手及跨进程事件
+│   │   ├── resume-workspace.test.ts # 恢复合并、有效基线、轻量同步及故障现场
+│   │   ├── recovery-boundaries.test.ts # 恢复互斥、统一阻断及迟到派发身份
+│   │   ├── exclusive-json.test.ts # 指标采集器排他锁原子发布与竞争
+│   │   └── resume-dispatch.test.ts # 后台恢复派发、交接和失败记录
 │   ├── integration/            # 真实 Docker、服务网络、内核采集及恢复
 │   ├── e2e/                    # 三种实际 Agent 的假中转站交付、有限返工、显式真实接口及恶意代码审核测试
 │   ├── helpers/               # 真实宿主 CLI 会话与输出捕获

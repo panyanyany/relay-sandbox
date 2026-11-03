@@ -1,7 +1,7 @@
 import { MemoryPressure, publishPressure } from "./pressure.js";
 import { observeDockerEvents } from "./runtime-events.js";
 import { ownsRuntime } from "../environments/ownership.js";
-import { readFile, writeFile, unlink, open } from "node:fs/promises";
+import { readFile, unlink, open } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -9,7 +9,7 @@ import { setTimeout } from "node:timers/promises";
 import type Docker from "dockerode";
 import { getTask, taskPath } from "../tasks/store.js";
 import { processIdentity } from "../tasks/lock.js";
-import { writeJson } from "../storage/files.js";
+import { writeJson, writeExclusiveJson } from "../storage/files.js";
 import { formatError } from "../audit/redaction.js";
 import { sampleTask } from "./sample.js";
 import { appendBoundedLog, pruneTelemetry } from "./log-store.js";
@@ -41,14 +41,10 @@ export async function monitorTask(home: string, id: string) {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  await writeFile(
-    lock,
-    JSON.stringify({
-      pid: process.pid,
-      identity: await processIdentity(process.pid),
-    }),
-    { flag: "wx", mode: 0o600 },
-  );
+  await writeExclusiveJson(lock, {
+    pid: process.pid,
+    identity: await processIdentity(process.pid),
+  });
   const controller = new AbortController(),
     previous = new Map<string, Docker.ContainerStats>();
   const pressure = new MemoryPressure();

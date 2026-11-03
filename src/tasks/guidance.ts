@@ -1,7 +1,18 @@
-import { environmentReady, canRecollect } from "./readiness.js";
+import {
+  environmentReady,
+  canRecollect,
+  legacyWorkspaceCheckpoint,
+} from "./readiness.js";
 import type { Task } from "./types.js";
 // 同名 checking 状态区分“开发已收集”和“最终候选已检查”，避免宿主无限等待。
 export function taskNextAction(task: Task): string {
+  if (task.recoveryPending || task.workspaceOperation) return "wait_task";
+  if (legacyWorkspaceCheckpoint(task))
+    return ["stopped", "interrupted", "failed"].includes(task.state)
+      ? "resume_task"
+      : "cancel_task_then_resume_task";
+  if (task.workspaceSync?.status === "applying")
+    return "get_result_then_cleanup_and_report";
   if (["queued", "running", "collecting", "applying"].includes(task.state))
     return "wait_task";
   if (["preparing", "prepared"].includes(task.state))

@@ -62,7 +62,7 @@ export async function idleEnvironment(home: string, task: Task) {
       const profile = profileSchema.parse(
         await readJson(join(taskPath(home, task.id), "profile.json")),
       );
-      await restartTaskRuntime(home, task, profile, "rework", false);
+      await restartTaskRuntime(home, task, profile, "delivery", false);
       // 错误示范：直接在 finally 抛错会覆盖同步错误；统一保留两个原因。
       await withFinalizer(
         () => synchronizeWorkspace(home, task, true, true),

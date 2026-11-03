@@ -1,3 +1,5 @@
+import { deliveryBaseline } from "./delivery-baseline.js";
+import { requireWorkspaceUsable } from "./readiness.js";
 import { randomUUID } from "node:crypto";
 import { discardCandidate } from "./artifact-state.js";
 import { requireRuntimeOwner } from "../environments/ownership.js";
@@ -15,6 +17,7 @@ import { prepareDirectProject } from "./direct-project.js";
 async function prepareDeliveryLocked(home: string, id: string) {
   const task = await getTask(home, id);
   await requireRuntimeOwner(home, task);
+  requireWorkspaceUsable(task);
   if (!task.artifactDigest || !task.containerId)
     throw new Error("尚未收集开发结果");
   if (["running", "applying", "completed", "cleaned"].includes(task.state))
@@ -46,7 +49,7 @@ async function prepareDeliveryLocked(home: string, id: string) {
     verbatimSymlinks: true,
   });
   const merged = await mergeCandidate(
-    join(root, "baseline"),
+    deliveryBaseline(home, task),
     join(root, "result"),
     current,
     candidate,

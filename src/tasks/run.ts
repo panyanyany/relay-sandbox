@@ -1,3 +1,4 @@
+import { requireWorkspaceUsable } from "./readiness.js";
 import { randomUUID } from "node:crypto";
 import { discardCandidate, invalidateResult } from "./artifact-state.js";
 import { recordStop } from "../monitoring/termination.js";
@@ -31,6 +32,7 @@ import { startDirectProject } from "./direct-project.js";
 // 重新收集时销毁旧的宿主结果目录，不复用可能含链接的旧导出目标。
 export async function collectTask(home: string, task: Task): Promise<Task> {
   if (!task.containerId) throw new Error("任务没有容器");
+  requireWorkspaceUsable(task);
   await requireRuntimeOwner(home, task);
   const current = await getTask(home, task.id);
   if (["stopped", "interrupted", "cleaned"].includes(current.state))
@@ -90,6 +92,8 @@ async function runTaskLocked(
 ): Promise<Task> {
   const task = await getTask(home, id);
   requireEnvironmentReady(task);
+  if (task.workspaceSync?.status === "applying")
+    throw new Error("恢复同步未完成，禁止运行；请取回现场并显式重置环境");
   await requireRuntimeOwner(home, task);
   const containerId = task.containerId;
   if (!containerId) throw new Error("任务没有运行环境");
@@ -119,7 +123,7 @@ async function runTaskLocked(
   )
     await restartTaskRuntime(home, task, profile, "rework");
   // 保留本轮用户需求，附加可选入口说明，不改任务原始prompt记录。
-  const guidance = await trafficGuidance(home, id);
+  const guidance = `${await trafficGuidance(home, id)}${task.workspaceSync?.status === "applied" ? "\n恢复提示：工作区已合入最新宿主修改，并保留未冲突的中断前成果。请重新读取相关文件再继续，旧检查结果需重新运行。" : ""}`;
   const effectivePrompt = `${prompt ?? task.prompt}\n\n${guidance}\n\n资源预算：容器内存上限 ${task.config.resources.memoryMiB} MiB。浏览器采集优先串行，复用浏览器并及时关闭页面；构建和截图采用有限并发。长任务按阶段保存产物、截图索引与进度，方便异常后续接。`;
   const spec = developmentAdapter(task.config.developmentAgent.type).launch(
     effectivePrompt,

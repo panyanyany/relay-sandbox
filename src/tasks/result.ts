@@ -22,7 +22,14 @@ async function optionalJson<T>(path: string): Promise<T | undefined> {
 export async function taskResult(home: string, id: string) {
   const task = await getTask(home, id),
     root = taskPath(home, id);
-  const baseline = await optionalJson<Manifest>(join(root, "baseline.json")),
+  const baseline = await optionalJson<Manifest>(
+      join(
+        root,
+        task.workspaceSync?.deliveryBase
+          ? "delivery-baseline.json"
+          : "baseline.json",
+      ),
+    ),
     result = await optionalJson<Manifest>(join(root, "result.json"));
   const plan = await optionalJson<ApplyPlan>(join(root, "apply-plan.json"));
   const policy = await buildPolicySummary(home, id);
@@ -49,7 +56,10 @@ export async function taskResult(home: string, id: string) {
             detailTool: "get_delivery_plan",
           }
         : null,
-    changes: baseline && result ? changes(baseline, result) : [],
+    changes:
+      task.artifactDigest && baseline && result
+        ? changes(baseline, result)
+        : [],
     audit: summarizeAudit(await loadAudit(home, id)),
     policy,
     monitoring: await telemetryStatus(home, id),

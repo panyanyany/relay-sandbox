@@ -20,7 +20,6 @@ import { redact, formatError } from "../audit/redaction.js";
 
 import { startService } from "../docker/services.js";
 import { dockerClient } from "../docker/client.js";
-import { resumeTask } from "../tasks/recovery.js";
 import { loadAudit } from "../audit/load.js";
 import { telemetryStatus } from "../monitoring/status.js";
 import { prepareUserReport } from "../reporting/user-report.js";
@@ -287,10 +286,11 @@ export async function serveMcp(home: string): Promise<void> {
   server.registerTool(
     "resume_task",
     {
-      description: "恢复中断任务的文件环境，随后可重新运行；不恢复进程内存。",
+      description:
+        "后台恢复中断任务；派发后等待任务状态。先将最新宿主项目与保留工作区三方同步；不要求项目使用 Git，冲突保留现场并暂停。成功后可重新运行，不恢复进程内存。",
       inputSchema: { id: z.string() },
     },
-    async ({ id }) => text(() => resumeTask(home, id)),
+    async ({ id }) => text(() => dispatchOperation(home, id, "resume")),
   );
   server.registerTool(
     "check_candidate",

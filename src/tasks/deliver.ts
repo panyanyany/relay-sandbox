@@ -1,3 +1,4 @@
+import { requireWorkspaceUsable } from "./readiness.js";
 import { idleEnvironment } from "../environments/idle.js";
 import { withTaskLock } from "./lock.js";
 import { join } from "node:path";
@@ -12,6 +13,7 @@ import { confirmDirectProject } from "./direct-project.js";
 async function reviewTaskLocked(home: string, id: string, input: unknown) {
   const decision = reviewSchema.parse(input);
   const task = await getTask(home, id);
+  requireWorkspaceUsable(task);
   if (!task.deliveryPrepared)
     throw new Error("尚未准备最终候选，请先 prepare_delivery");
   if (!["checking", "ready", "blocked"].includes(task.state))
@@ -29,6 +31,7 @@ async function reviewTaskLocked(home: string, id: string, input: unknown) {
 }
 async function applyTaskLocked(home: string, id: string) {
   const task = await getTask(home, id);
+  requireWorkspaceUsable(task);
   if (task.state !== "ready" || !isReady(task))
     throw new Error("未满足交付条件，请先准备最终候选并完成配置的检查");
   const root = taskPath(home, id),

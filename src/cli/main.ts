@@ -227,6 +227,12 @@ program
   .command("resume <id>")
   .action(async (id: string) => show(await resumeTask(home(), id)));
 program
+  .command("resume-background <id> <dispatchId>")
+  .description("内部后台恢复入口，核对派发身份后执行")
+  .action(async (id: string, dispatchId: string) =>
+    show(await resumeTask(home(), id, dispatchId)),
+  );
+program
   .command("metrics <id>")
   .description("读取宿主最新资源指标")
   .action(async (id: string) => show(await telemetryStatus(home(), id)));

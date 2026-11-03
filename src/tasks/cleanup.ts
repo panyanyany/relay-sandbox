@@ -93,6 +93,27 @@ async function withPreparationLock<T>(
   cancel = false,
 ) {
   const task = await getTask(home, id);
+  if (
+    task.recoveryPending ||
+    task.workspaceOperation ||
+    (!["running", "collecting"].includes(task.state) &&
+      !(task.state === "preparing" && task.environmentReady === false))
+  ) {
+    // 恢复与清理共用操作锁；不能在上传途中删除现场，也不强杀同步进程。
+    try {
+      return await withTaskLock(home, id, operation);
+    } catch (error) {
+      if (
+        (error as NodeJS.ErrnoException).code === "EEXIST" &&
+        (error as NodeJS.ErrnoException).path ===
+          join(taskPath(home, id), "operation.lock")
+      )
+        throw new Error("任务当前操作尚未完成，请等待结束后再取消或清理", {
+          cause: error,
+        });
+      throw error;
+    }
+  }
   if (task.state !== "preparing" || task.environmentReady !== false)
     return operation();
   if (cancel) await requestPreparationCancellation(home, id);
@@ -141,6 +162,9 @@ async function stopTaskUnlocked(home: string, id: string) {
     await releaseEnvironment(home, task);
   }
   if (task.state !== "completed") task.state = "stopped";
+  delete task.recoveryPending;
+  delete task.recoveryDispatch;
+  delete task.workspaceOperation;
   await saveTask(home, task);
   return task;
 }
@@ -202,6 +226,7 @@ async function cleanupTaskUnlocked(home: string, id: string) {
       "host-baseline",
       "environment-current",
       "delivery-sync",
+      "resume-sync",
     ])
       await attempt(
         () =>
@@ -217,6 +242,9 @@ async function cleanupTaskUnlocked(home: string, id: string) {
     );
   await releaseEnvironment(home, task);
   task.state = "cleaned";
+  delete task.recoveryPending;
+  delete task.recoveryDispatch;
+  delete task.workspaceOperation;
   task.cleanedAt = new Date().toISOString();
   await saveTask(home, task);
   return task;

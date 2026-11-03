@@ -1,3 +1,4 @@
+import type { Task } from "../../src/tasks/types.js";
 import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "vitest";
@@ -126,10 +127,57 @@ dockerTest(
           delivery: { aiReview: false },
         }),
       );
+      await writeFile(
+        join(f.project, "resume-code"),
+        "first\nsecond\nthird\nfourth\nfifth\n",
+      );
       const ttl = await f.create();
+      await command(
+        ttl.containerId!,
+        "printf 'first\\nsecond\\nthird\\nfourth\\nagent\\n' > resume-code; printf retained > resume-dependency",
+      );
       await stopTask(f.home, ttl.id);
-      await resumeTask(f.home, ttl.id);
+      await writeFile(
+        join(f.project, "resume-code"),
+        "host\nsecond\nthird\nfourth\nfifth\n",
+      );
+      const dispatched = await f.tool<{ status: string; taskId: string }>(
+        "resume_task",
+        { id: ttl.id },
+      );
+      expect(dispatched).toMatchObject({
+        status: "dispatched",
+        taskId: ttl.id,
+      });
+      let restored = await f.tool<
+        Task & { revision: string; environmentReady: boolean }
+      >("get_task", { id: ttl.id });
+      const deadline = Date.now() + 90000;
+      while (!restored.environmentReady || restored.state !== "prepared") {
+        if (restored.state === "failed") throw new Error(restored.error);
+        if (Date.now() > deadline) throw new Error("后台恢复超时");
+        const snapshot = await f.tool<{
+          task: Task;
+          revision: string;
+          environmentReady: boolean;
+        }>("wait_task", {
+          id: ttl.id,
+          afterRevision: restored.revision,
+          timeoutSeconds: 2,
+        });
+        restored = {
+          ...snapshot.task,
+          revision: snapshot.revision,
+          environmentReady: snapshot.environmentReady,
+        };
+      }
       expect((await getTask(f.home, ttl.id)).state).toBe("prepared");
+      expect(await command(ttl.containerId!, "cat resume-code")).toBe(
+        "host\nsecond\nthird\nfourth\nagent\n",
+      );
+      expect(await command(ttl.containerId!, "cat resume-dependency")).toBe(
+        "retained",
+      );
       await stopTask(f.home, ttl.id);
       await f.permissions({ project: { mode: "direct" } });
       await expect(f.create()).rejects.toThrow();

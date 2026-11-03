@@ -91,6 +91,10 @@ export async function superviseOnce(
         task.warnings.push("网络策略刷新失败，已停止整个任务");
       }
       task.state = "interrupted";
+      // 失联操作已停止；撤销交接身份，保留半写入标记供人工取回现场。
+      delete task.recoveryPending;
+      delete task.recoveryDispatch;
+      delete task.workspaceOperation;
       task.interruptedAt = new Date(now).toISOString();
       task.expiresAt = new Date(
         now + task.config.lifecycle.interruptedRetentionHours * 3600000,
@@ -128,11 +132,21 @@ export async function superviseOnce(
   return actions;
 }
 // 恢复前重新安装网络策略，绝不直接启动未核验的开发进程。
-export async function resumeTask(home: string, id: string) {
+export async function resumeTask(
+  home: string,
+  id: string,
+  dispatchId?: string,
+) {
   return withTaskLock(home, id, async () => {
     const task = await getTask(home, id);
     if (
-      !["interrupted", "stopped", "failed"].includes(task.state) ||
+      (dispatchId
+        ? !(
+            task.state === "queued" &&
+            task.recoveryPending &&
+            task.recoveryDispatch === dispatchId
+          )
+        : !["interrupted", "stopped", "failed"].includes(task.state)) ||
       !task.containerId ||
       !task.networkId
     )
@@ -141,12 +155,15 @@ export async function resumeTask(home: string, id: string) {
       throw new Error(
         "首次准备尚未完成，不能恢复部分环境；请清理后重新创建任务",
       );
-    const profile = profileSchema.parse(
-      await readJson(join(taskPath(home, id), "profile.json")),
-    );
-    await claimEnvironment(home, task);
     const docker = dockerClient();
     try {
+      task.recoveryPending = true;
+      delete task.failureStage;
+      await saveTask(home, task);
+      const profile = profileSchema.parse(
+        await readJson(join(taskPath(home, id), "profile.json")),
+      );
+      await claimEnvironment(home, task);
       // 先回收旧代理和旧进程，恢复只保留文件；不从最新宿主配置扩大授权。
       await stopTaskResources(home, task, "resume");
       if ((await taskProjectMode(home, task)) === "direct")
@@ -166,12 +183,18 @@ export async function resumeTask(home: string, id: string) {
         );
       }
       task.state = "failed";
+      delete task.recoveryPending;
+      delete task.recoveryDispatch;
       task.error = formatError(failure);
       await saveTask(home, task);
       throw failure;
     }
     task.state = "prepared";
+    delete task.recoveryPending;
+    delete task.recoveryDispatch;
     task.environmentReady = true;
+    delete task.error;
+    delete task.failureStage;
     delete task.expiresAt;
     delete task.interruptedAt;
     await saveTask(home, task);

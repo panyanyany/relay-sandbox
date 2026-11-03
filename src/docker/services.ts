@@ -1,3 +1,4 @@
+import { requireWorkspaceUsable } from "../tasks/readiness.js";
 import { requireRuntimeOwner } from "../environments/ownership.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -20,6 +21,7 @@ export async function startService(
   task: Task,
   profile: string,
 ): Promise<string> {
+  requireWorkspaceUsable(task);
   await requireRuntimeOwner(home, task);
   if (!/^[\w-]+$/.test(profile)) throw new Error("服务档案标识非法");
   if (

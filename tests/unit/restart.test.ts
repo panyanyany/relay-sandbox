@@ -2,6 +2,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { configSchema, profileSchema } from "../../src/config/schema.js";
 import { restartTaskRuntime } from "../../src/tasks/restart.js";
 import type { Task } from "../../src/tasks/types.js";
+import { synchronizeResumedWorkspace } from "../../src/tasks/resume-workspace.js";
 
 const calls = vi.hoisted(() => ({
   start: vi.fn(),
@@ -26,6 +27,9 @@ vi.mock("../../src/tasks/cleanup.js", () => ({
   stopTaskResources: calls.stop,
 }));
 vi.mock("../../src/tasks/store.js", () => ({ saveTask: calls.save }));
+vi.mock("../../src/tasks/resume-workspace.js", () => ({
+  synchronizeResumedWorkspace: vi.fn(),
+}));
 const profile = profileSchema.parse({
   endpoint: "https://fixture.invalid/v1",
   model: "fixture",
@@ -83,4 +87,10 @@ test("启动与清理失败保留两个异常及原因链", async () => {
   expect(error).toBeInstanceOf(AggregateError);
   expect((error as AggregateError).errors).toEqual([initial, cleanup]);
   expect((error as Error).cause).toBe(initial);
+});
+
+// 交付收尾已经持有环境锁并有独立同步步骤，不能再次进入恢复同步。
+test("交付内部启动不重复同步或使已通过审核失效", async () => {
+  await restartTaskRuntime("/fixture", task(), profile, "delivery", false);
+  expect(synchronizeResumedWorkspace).not.toHaveBeenCalled();
 });

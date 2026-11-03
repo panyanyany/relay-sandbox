@@ -1,8 +1,12 @@
-import { invalidateResult } from "./artifact-state.js";
+import { taskProjectMode } from "../workspace/access.js";
+import type { Task } from "./types.js";
+import { randomUUID } from "node:crypto";
+import { invalidateResult, invalidateCandidate } from "./artifact-state.js";
 import {
   requireEnvironmentReady,
   taskLockBusy,
   canRecollect,
+  requireWorkspaceUsable,
 } from "./readiness.js";
 import { spawn } from "node:child_process";
 import { open } from "node:fs/promises";
@@ -16,7 +20,8 @@ export type BackgroundOperation =
   | "prepare"
   | "check-candidate"
   | "initialize-task"
-  | "collect";
+  | "collect"
+  | "resume";
 // 派发前置为 queued，防止后台进程尚未启动时旧制品被并发应用。
 export async function dispatchOperation(
   home: string,
@@ -24,12 +29,33 @@ export async function dispatchOperation(
   operation: BackgroundOperation,
   prompt?: string,
 ) {
-  if (operation !== "initialize-task")
+  if (operation !== "initialize-task" && operation !== "resume")
     requireEnvironmentReady(await getTask(home, id));
-  let task;
+  let task: Task;
   try {
     task = await withTaskLock(home, id, async () => {
       const task = await getTask(home, id);
+      if (operation === "resume") {
+        if (
+          !["stopped", "interrupted", "failed"].includes(task.state) ||
+          !task.containerId ||
+          !task.networkId ||
+          task.environmentReady === false
+        )
+          throw new Error("任务不可恢复");
+        if (task.workspaceSync?.status === "applying")
+          throw new Error("恢复同步未完成，请先取回现场并显式重置环境");
+        if (task.recoveryPending) throw new Error("恢复已派发，请等待任务状态");
+        task.recoveryPending = true;
+        task.recoveryDispatch = randomUUID();
+        delete task.failureStage;
+        if ((await taskProjectMode(home, task)) === "direct")
+          invalidateCandidate(task);
+        else invalidateResult(task);
+        task.state = "queued";
+        await saveTask(home, task);
+        return task;
+      }
       if (
         [
           "stopped",
@@ -48,6 +74,7 @@ export async function dispatchOperation(
         return task;
       }
       requireEnvironmentReady(task);
+      requireWorkspaceUsable(task);
       if (operation === "collect") {
         if (!canRecollect(task))
           throw new Error("仅产物收集失败的任务可重试收集");
@@ -85,7 +112,11 @@ export async function dispatchOperation(
   try {
     log = await open(join(taskPath(home, id), "worker.log"), "a", 0o600);
     const args =
-      operation === "run" && prompt ? ["rework", id, prompt] : [operation, id];
+      operation === "resume"
+        ? ["resume-background", id, task.recoveryDispatch!]
+        : operation === "run" && prompt
+          ? ["rework", id, prompt]
+          : [operation, id];
     const child = spawn(
       process.execPath,
       [...(source ? ["--import", "tsx"] : []), entry, "--home", home, ...args],
@@ -98,10 +129,26 @@ export async function dispatchOperation(
     child.unref();
     return { taskId: id, workerPid: child.pid, status: "dispatched" };
   } catch (error) {
-    task.state = "failed";
-    task.error = formatError(error);
-    try {
+    const persistFailure = async () => {
+      if (operation === "resume") {
+        const latest = await getTask(home, id);
+        // 派发间隙已取消或已换代时，迟到失败不能覆盖新的任务状态。
+        if (
+          latest.state !== "queued" ||
+          latest.recoveryDispatch !== task.recoveryDispatch
+        )
+          return;
+        task = latest;
+        delete task.recoveryPending;
+        delete task.recoveryDispatch;
+      }
+      task.state = "failed";
+      task.error = formatError(error);
       await saveTask(home, task);
+    };
+    try {
+      if (operation === "resume") await withTaskLock(home, id, persistFailure);
+      else await persistFailure();
     } catch (persist) {
       throw new AggregateError([error, persist], "派发失败且无法记录任务状态", {
         cause: error,

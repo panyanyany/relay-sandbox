@@ -1,3 +1,4 @@
+import { requireWorkspaceUsable } from "./readiness.js";
 import { requireCurrentCandidate } from "./artifact-state.js";
 import type Docker from "dockerode";
 import { readFrozenPolicy } from "../permissions/freeze.js";
@@ -49,6 +50,7 @@ async function finishCheck(
 // 宿主解决冲突后复用同一检查入口，不重新生成候选而覆盖宿主修复。
 export async function verifyCandidate(home: string, task: Task) {
   requireCurrentCandidate(task);
+  requireWorkspaceUsable(task);
   const root = taskPath(home, task.id),
     candidate = join(root, "candidate");
   const manifest = await scan(candidate),

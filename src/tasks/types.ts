@@ -52,6 +52,17 @@ export interface Task {
   // 每次收集产生新代次，候选准备后绑定；返工与重收集不能沿用旧候选。
   resultGeneration?: string;
   candidateGeneration?: string;
+  // 恢复检查点分别定位宿主快照和有效交付基线；初始快照留作证据。
+  workspaceSync?: {
+    id: string;
+    status: "applying" | "applied";
+    deliveryBase?: string;
+    version?: 2;
+  };
+  // 后台恢复交接和运行时同步期间，取消/清理必须取得同一任务锁。
+  recoveryPending?: boolean;
+  recoveryDispatch?: string;
+  workspaceOperation?: boolean;
   review?: ReviewDecision;
   deliveryPrepared?: boolean;
   applicationStatus?: "not_attempted" | "in_progress" | "applied" | "failed";
