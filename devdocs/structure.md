@@ -67,6 +67,11 @@ relay-sandbox/
 │   │   ├── idle.ts             # 交付后停止保留或临时销毁
 │   │   └── lifecycle.ts        # 停止、重置、删除及TTL候选
 │   ├── tasks/                  # 创建、后台派发、开发、收集及交付编排
+│   │   ├── create.ts           # 冻结预约、带租约准备及CLI同步创建
+│   │   ├── start.ts            # MCP创建后立即派发后台准备
+│   │   ├── preparation-control.ts # 跨进程取消标记及文件复制中止信号
+│   │   ├── readiness.ts        # 新任务完整就绪校验及旧容器兼容
+│   │   ├── dispatch.ts         # 后台准备、开发及检查进程派发
 │   │   ├── environment*.ts     # 冻结资源、独立观察环境、状态和生命周期
 │   │   ├── environment-diagnostics.ts # 宿主脱敏原因链及诊断写盘失败留证
 │   │   ├── restart.ts          # 恢复与返工共用网络、审计降级及失败收尾
@@ -87,6 +92,7 @@ relay-sandbox/
 │   │   ├── stable-file.ts      # 固定缓冲区安全读取、流式摘要与共享采集限制
 │   │   └── access.ts           # 主项目冻结访问模式、挂载及目录身份核验
 │   ├── docker/                 # 运行模板、资源限制、归档、执行及服务
+│   │   └── preparation-timeout.ts # 仅准备调用链生效的Docker请求超时
 │   ├── network/                # 宿主地址探测、任务网络规则
 │   ├── agents/
 │   │   ├── host/               # 宿主接入、审查契约及严格审核 Schema

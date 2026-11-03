@@ -11,7 +11,9 @@ export async function hashStable(
   path: string,
   consume?: (chunk: Buffer) => Promise<void>,
   maxFileBytes = Infinity,
+  signal?: AbortSignal,
 ): Promise<{ hash: string; size: number }> {
+  signal?.throwIfAborted();
   const parts = path.split("/");
   if (parts.some((part) => !part || part === "." || part === ".."))
     throw new Error(`文件路径非法: ${path}`);
@@ -46,6 +48,7 @@ export async function hashStable(
       // 错误示范：readFile会按沙箱文件大小分配宿主内存；固定缓冲区并检查增长。
       const buffer = Buffer.alloc(64 * 1024);
       for (;;) {
+        signal?.throwIfAborted();
         const { bytesRead } = await fd.read(buffer, 0, buffer.length, null);
         if (!bytesRead) break;
         size += bytesRead;

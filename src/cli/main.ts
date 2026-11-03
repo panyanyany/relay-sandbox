@@ -11,7 +11,7 @@ import { join, resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import { dispatchTask } from "../tasks/dispatch.js";
 import { registerProject } from "../projects/registry.js";
-import { createTask } from "../tasks/create.js";
+import { createTask, prepareTask } from "../tasks/create.js";
 import { getTask, taskPath, listTasks } from "../tasks/store.js";
 import { runTask } from "../tasks/run.js";
 import { checkAndRepair } from "../tasks/check-and-repair.js";
@@ -130,6 +130,10 @@ program
       show(await dispatchTask(home(), task.id));
     },
   );
+program
+  .command("initialize-task <id>")
+  .description("后台准备已冻结任务的环境")
+  .action(async (id: string) => show(await prepareTask(home(), id)));
 program
   .command("run <id>")
   .description("运行已准备的任务")

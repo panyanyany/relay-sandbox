@@ -9,7 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { reviewSchema } from "../agents/host/review-schema.js";
-import { createTask } from "../tasks/create.js";
+import { startTask } from "../tasks/start.js";
 import { getTask } from "../tasks/store.js";
 import { taskSnapshot, waitTask } from "../tasks/wait.js";
 import { mcpCapabilities, serverInstructions } from "./capabilities.js";
@@ -171,11 +171,10 @@ export async function serveMcp(home: string): Promise<void> {
     "start_task",
     {
       description:
-        "为已注册项目创建隔离任务并冻结宿主授权；项目/MCP不能扩权。只准备环境，随后调用 run_task。",
+        "为已注册项目创建隔离任务并冻结宿主授权；项目/MCP不能扩权。立即返回任务ID，后台准备环境；用wait_task或订阅等待environmentReady=true及nextAction=run_task后再运行。",
       inputSchema: { project: z.string(), prompt: z.string().min(1) },
     },
-    async ({ project, prompt }) =>
-      text(() => createTask(home, project, prompt)),
+    async ({ project, prompt }) => text(() => startTask(home, project, prompt)),
   );
   server.registerTool(
     "run_task",
@@ -190,7 +189,7 @@ export async function serveMcp(home: string): Promise<void> {
     "get_task",
     {
       description:
-        "立即读取任务状态和 revision 版本游标。preparing 且 round=0 需要 run_task；开发完成后 prepare_delivery，deliveryPrepared=true 后审查。可将游标传给 wait_task。",
+        "立即读取任务状态和 revision 版本游标。environmentReady=false 时等待，nextAction=run_task 才开始开发；开发完成后 prepare_delivery，deliveryPrepared=true 后审查。可将游标传给 wait_task。",
       inputSchema: { id: z.string() },
     },
     async ({ id }) =>
@@ -198,6 +197,7 @@ export async function serveMcp(home: string): Promise<void> {
         const snapshot = await taskSnapshot(home, id);
         return {
           ...snapshot.task,
+          environmentReady: snapshot.environmentReady,
           revision: snapshot.revision,
           nextAction: snapshot.nextAction,
         };
@@ -244,7 +244,8 @@ export async function serveMcp(home: string): Promise<void> {
   server.registerTool(
     "cancel_task",
     {
-      description: "停止任务运行环境；与取消 wait_task 等待不同。",
+      description:
+        "停止任务运行环境；准备期间先返回cancellationRequested=true表示已受理，用wait_task等待stopped或failed后再清理。与取消wait_task等待不同。",
       inputSchema: { id: z.string() },
     },
     async ({ id }) => text(() => stopTask(home, id)),

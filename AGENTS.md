@@ -51,9 +51,9 @@
 | [结构化审核](devdocs/review.md) | 严格审核 Schema、CLI/MCP 提交、分类与恶意中转站测试 |
 | [行为策略](devdocs/behavior-policy.md) | 宿主授权、冻结网络例外、目录模式、默认关闭诱饵、显式工具与覆盖边界 |
 | [中转配置](devdocs/relay-setup.md) | 对话初始化、私有文件模板与导入、目录授权与项目元数据、完整操作锁、凭据隔离与覆盖提示、主动提供密钥直配、文件与隐藏录入任选、模板基线冲突及分阶段配置检查 |
-| [任务事件](devdocs/task-events.md) | MCP 资源订阅、并发初始化、订阅健康查询、故障诊断、断线清理及宿主续接边界 |
+| [任务事件](devdocs/task-events.md) | MCP 资源订阅、并发初始化、订阅健康查询、故障诊断、断线清理、后台环境准备、取消、租约交接及派发失败定位与宿主续接边界 |
 | [运行说明](devdocs/usage.md) | 安装构建、模型档案、CLI/MCP 能力发现、有界等待、交付、服务、真实模型测试、部分审计及限制 |
-| [实现验证记录](devdocs/implementation-validation.md) | 实际测试、三种开发 Agent 联调、Codex 宿主上报、指标崩溃留证、维护性修复回归、诱饵调用关联、项目访问模式、REV-001–REV-005 回归、持久环境验收、PENV-001–PENV-004 修复回归、任务事件验证、EVT-001–EVT-003 回归、中转配置闭环、首次配置与项目元数据、SETUP-001–SETUP-006 修复回归、主动密钥直配与双录入入口、CRED-001–CRED-004 修复及剩余验收 |
+| [实现验证记录](devdocs/implementation-validation.md) | 实际测试、三种开发 Agent 联调、Codex 宿主上报、指标崩溃留证、维护性修复回归、诱饵调用关联、项目访问模式、REV-001–REV-005 回归、持久环境验收、PENV-001–PENV-004 修复回归、任务事件验证、EVT-001–EVT-003 回归、中转配置闭环、首次配置与项目元数据、SETUP-001–SETUP-006 修复回归、主动密钥直配与双录入入口、CRED-001–CRED-004 修复、后台环境准备与真实Docker就绪验收及剩余验收 |
 | [持久环境](devdocs/persistent-environments.md) | 项目环境默认保留、跨任务同步、TTL、资源检查快照、审计降级、错误链及显式重置删除 |
 | [项目访问方式](devdocs/project-access.md) | 默认隔离、宿主显式直接挂载、停止后检查、采集限制与恢复清理 |
 | [调用关联](devdocs/traffic-correlation.md) | 显式入口进程声明、调用与请求编号、内部头剥离、功能就绪探针、证据边界及真实验收 |

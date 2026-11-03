@@ -65,7 +65,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
       expect(
         (await docker.getContainer(handle.containerId).inspect()).State.Running,
       ).toBe(false);
-      expect((await resumeTask(home, id)).state).toBe("preparing");
+      expect((await resumeTask(home, id)).state).toBe("prepared");
       expect(
         (
           await execute(

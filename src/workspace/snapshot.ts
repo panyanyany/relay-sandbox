@@ -31,14 +31,17 @@ export async function snapshot(
   dest: string,
   exclude: string[],
   maxFileBytes = Infinity,
+  signal?: AbortSignal,
 ): Promise<Manifest> {
+  signal?.throwIfAborted();
   if (inside(resolve(root), resolve(dest)))
     throw new Error("任务目录不能位于原项目内");
   if (!exclude.includes(".git") && !exclude.includes(".git/**"))
     await validateGit(root);
-  const manifest = await scan(root, exclude, maxFileBytes);
+  const manifest = await scan(root, exclude, maxFileBytes, signal);
   await mkdir(dest, { recursive: true, mode: 0o700 });
   for (const entry of manifest) {
+    signal?.throwIfAborted();
     const target = join(dest, entry.path);
     await mkdir(dirname(target), { recursive: true });
     if (entry.type === "directory") {
@@ -58,6 +61,7 @@ export async function snapshot(
           await output.writeFile(chunk);
         },
         maxFileBytes,
+        signal,
       );
       if (copied.hash !== entry.hash)
         throw new Error(`复制期间内容变化: ${entry.path}`);
@@ -69,7 +73,7 @@ export async function snapshot(
     if (entry.type === "directory")
       await chmod(join(dest, entry.path), entry.mode);
   if (
-    JSON.stringify(await scan(root, exclude, maxFileBytes)) !==
+    JSON.stringify(await scan(root, exclude, maxFileBytes, signal)) !==
     JSON.stringify(manifest)
   )
     throw new Error("复制期间项目发生变化，请重新创建任务");

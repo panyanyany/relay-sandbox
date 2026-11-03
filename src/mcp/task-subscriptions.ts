@@ -46,7 +46,13 @@ export class TaskSubscriptions {
     try {
       // 监听目录而非旧文件 inode，才能接收后台进程的原子替换。
       entry.watcher = watch(taskPath(this.home, id), (_event, filename) => {
-        if (filename !== null && filename.toString() !== "task.json") return;
+        if (
+          filename !== null &&
+          !["task.json", "operation.lock", "preparation-cancel.json"].includes(
+            filename.toString(),
+          )
+        )
+          return;
         if (
           this.entries.get(uri) !== entry ||
           entry.state !== "active" ||

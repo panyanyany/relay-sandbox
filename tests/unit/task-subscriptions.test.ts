@@ -25,6 +25,8 @@ class Watcher extends EventEmitter {
 const watchers: Watcher[] = [];
 const snapshot: Awaited<ReturnType<typeof snapshots.taskSnapshot>> = {
   task: {
+    environmentReady: false,
+    cancellationRequested: false,
     id: "task",
     projectId: "project",
     projectRoot: "/unused",
@@ -39,6 +41,7 @@ const snapshot: Awaited<ReturnType<typeof snapshots.taskSnapshot>> = {
     warnings: [],
   },
   revision: "a".repeat(64),
+  environmentReady: false,
   nextAction: "wait_task",
 };
 // 手动控制读取完成顺序，确定性覆盖并发和取消竞态，不依赖真实磁盘时序。
@@ -197,3 +200,22 @@ test("连接断开立即释放监听器和待发送定时器", async () => {
     await server.close();
   }
 });
+
+// PREP-003：锁释放及取消标记属于快照事实，必须和task.json一样触发失效通知。
+test.each(["operation.lock", "preparation-cancel.json"])(
+  "%s变化触发任务资源通知",
+  async (filename) => {
+    const send = vi.fn(async () => {});
+    const registry = new TaskSubscriptions("/unused", send);
+    try {
+      await registry.subscribe(uri, "task");
+      const callback = vi.mocked(watch).mock.calls[0]![1];
+      if (typeof callback !== "function") throw new Error("缺少目录监听回调");
+      callback("rename", filename);
+      await vi.advanceTimersByTimeAsync(30);
+      expect(send).toHaveBeenCalledWith(uri);
+    } finally {
+      registry.close();
+    }
+  },
+);

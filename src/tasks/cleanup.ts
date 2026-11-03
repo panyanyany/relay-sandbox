@@ -1,3 +1,5 @@
+import { requestPreparationCancellation } from "./preparation-control.js";
+import { withTaskLock } from "./lock.js";
 import { ownsRuntime, releaseEnvironment } from "../environments/ownership.js";
 import { rememberPersistentAudit } from "../environments/audit.js";
 import { stopMonitor } from "../monitoring/monitor.js";
@@ -76,7 +78,43 @@ export async function stopTaskResources(
   if (errors.length)
     throw new AggregateError(errors, "任务部分运行资源未确认停止");
 }
+// 准备阶段共享租约；不能一边清理目录，一边继续创建或借用项目环境。
+async function withPreparationLock<T>(
+  home: string,
+  id: string,
+  operation: () => Promise<T>,
+  cancel = false,
+) {
+  const task = await getTask(home, id);
+  if (task.state !== "preparing" || task.environmentReady !== false)
+    return operation();
+  if (cancel) await requestPreparationCancellation(home, id);
+  try {
+    return await withTaskLock(home, id, operation);
+  } catch (error) {
+    if (
+      (error as NodeJS.ErrnoException).code === "EEXIST" &&
+      (error as NodeJS.ErrnoException).path ===
+        join(taskPath(home, id), "operation.lock")
+    ) {
+      if (cancel) {
+        const latest = await getTask(home, id);
+        // 准备已发布完成时只剩锁收尾，走正常停止，避免迟到取消永久悬挂。
+        if (latest.state !== "preparing") return operation();
+        return { ...latest, cancellationRequested: true };
+      }
+      throw new Error(
+        "环境正在准备，暂不能并发停止或清理；请等待准备结束后重试",
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+}
 export async function stopTask(home: string, id: string) {
+  return withPreparationLock(home, id, () => stopTaskUnlocked(home, id), true);
+}
+async function stopTaskUnlocked(home: string, id: string) {
   const task = await getTask(home, id);
   if (task.state === "applying")
     throw new Error("应用正在进行，不能中途清理；请等待结果并检查应用日志");
@@ -101,6 +139,9 @@ export async function stopTask(home: string, id: string) {
 }
 // 只有全部运行资源和网络回收成功后才删除副本；授权源从不在删除清单中。
 export async function cleanupTask(home: string, id: string) {
+  return withPreparationLock(home, id, () => cleanupTaskUnlocked(home, id));
+}
+async function cleanupTaskUnlocked(home: string, id: string) {
   const task = await getTask(home, id);
   if (task.state === "applying") throw new Error("应用过程中不能清理");
   if (task.state === "cleaned") return task;

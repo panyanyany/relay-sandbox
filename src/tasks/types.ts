@@ -3,6 +3,7 @@ import type { ReviewDecision } from "../agents/host/contract.js";
 export type TaskState =
   | "queued"
   | "preparing"
+  | "prepared"
   | "running"
   | "collecting"
   | "checking"
@@ -31,6 +32,8 @@ export interface Task {
   projectIdentity?: string;
   // 稳定环境独立于任务；省略时保留旧版按任务回收的语义。
   environmentId?: string;
+  // 显式准备完成标记；旧任务省略时根据容器存在性兼容。
+  environmentReady?: boolean;
   prompt: string;
   config: Config;
   configDigest: string;

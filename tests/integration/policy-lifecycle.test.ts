@@ -92,7 +92,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         "privileged: true",
       );
       const resumed = await resumeTask(home, task.id);
-      expect(resumed.state).toBe("preparing");
+      expect(resumed.state).toBe("prepared");
       const current = (await loadMainEnvironment(home, task.id))!;
       expect(current.summary.runtimeId === main.summary.runtimeId).toBe(false);
       expect(current.summary.traffic).toBe("ready");
@@ -237,7 +237,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         }),
       );
       await expect(stopTask(home, task.id)).rejects.toThrow();
-      expect((await getTask(home, task.id)).state).toBe("preparing");
+      expect((await getTask(home, task.id)).state).toBe("prepared");
       expect(
         (await docker.getContainer(task.containerId!).inspect()).State.Running,
       ).toBe(false);

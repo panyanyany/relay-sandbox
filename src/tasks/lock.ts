@@ -16,7 +16,11 @@ export async function processIdentity(
     const stat = await readFile(`/proc/${pid}/stat`, "utf8");
     return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    // /proc 中的进程在打开与读取之间退出时也可能返回 ESRCH。
+    if (
+      ["ENOENT", "ESRCH"].includes((error as NodeJS.ErrnoException).code ?? "")
+    )
+      return undefined;
     throw error;
   }
 }

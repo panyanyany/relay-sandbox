@@ -129,7 +129,7 @@ dockerTest(
       const ttl = await f.create();
       await stopTask(f.home, ttl.id);
       await resumeTask(f.home, ttl.id);
-      expect((await getTask(f.home, ttl.id)).state).toBe("preparing");
+      expect((await getTask(f.home, ttl.id)).state).toBe("prepared");
       await stopTask(f.home, ttl.id);
       await f.permissions({ project: { mode: "direct" } });
       await expect(f.create()).rejects.toThrow();

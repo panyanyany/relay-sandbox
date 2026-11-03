@@ -49,9 +49,14 @@ export async function superviseOnce(
       !abandoned &&
       task.containerId &&
       task.networkId &&
-      ["running", "preparing", "checking", "ready", "awaiting_user"].includes(
-        task.state,
-      )
+      [
+        "running",
+        "preparing",
+        "prepared",
+        "checking",
+        "ready",
+        "awaiting_user",
+      ].includes(task.state)
     ) {
       try {
         await refreshNetwork(home, task);
@@ -132,6 +137,10 @@ export async function resumeTask(home: string, id: string) {
       !task.networkId
     )
       throw new Error("任务不可恢复");
+    if (task.environmentReady === false)
+      throw new Error(
+        "首次准备尚未完成，不能恢复部分环境；请清理后重新创建任务",
+      );
     const profile = profileSchema.parse(
       await readJson(join(taskPath(home, id), "profile.json")),
     );
@@ -161,7 +170,8 @@ export async function resumeTask(home: string, id: string) {
       await saveTask(home, task);
       throw failure;
     }
-    task.state = "preparing";
+    task.state = "prepared";
+    task.environmentReady = true;
     delete task.expiresAt;
     delete task.interruptedAt;
     await saveTask(home, task);

@@ -4,13 +4,11 @@ import { join } from "node:path";
 import { expect, test, vi } from "vitest";
 import { configSchema, profileSchema } from "../../src/config/schema.js";
 import * as config from "../../src/config/load.js";
-import * as environment from "../../src/tasks/environment.js";
 import * as acquire from "../../src/environments/acquire.js";
 import * as cleanup from "../../src/tasks/cleanup.js";
 import { registerProject } from "../../src/projects/registry.js";
 import { createTask } from "../../src/tasks/create.js";
 import { listTasks } from "../../src/tasks/store.js";
-import { hostPermissionsSchema } from "../../src/permissions/schema.js";
 
 // 真实创建入口和任务存储，故障只注入到环境准备与收尾边界。
 test("创建失败保存准备及停止堆栈，专用凭据脱敏", async () => {
@@ -32,10 +30,6 @@ test("创建失败保存准备及停止堆栈，专用凭据脱敏", async () =>
     vi.stubEnv(profile.apiKeyEnv, "private-regression-credential");
     vi.spyOn(config, "loadConfig").mockResolvedValue(configSchema.parse({}));
     vi.spyOn(config, "loadProfile").mockResolvedValue(profile);
-    vi.spyOn(environment, "freezeEnvironment").mockResolvedValue({
-      policy: { schemaVersion: 1, ...hostPermissionsSchema.parse({}) },
-      configDigest: "test",
-    });
     vi.spyOn(acquire, "acquireEnvironment").mockImplementation(
       async (_home, task) => {
         task.environmentId = "env";

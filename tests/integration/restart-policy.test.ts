@@ -22,7 +22,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         new Error("synthetic audit EACCES"),
       );
       const restored = await resumeTask(f.home, task.id);
-      expect(restored.state).toBe("preparing");
+      expect(restored.state).toBe("prepared");
       expect(restored.warnings.join("\n")).toContain("synthetic audit EACCES");
       await stopTask(f.home, task.id);
       // 允许runTask的状态仍由公开恢复入口建立；停止资源后以已准备状态进入返工。

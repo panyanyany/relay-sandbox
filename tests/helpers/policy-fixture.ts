@@ -109,10 +109,33 @@ export async function policyFixture(options: { persistent?: boolean } = {}) {
     },
     async create() {
       if (!options.persistent) await configureEphemeralProject(project);
-      return tool<Task>("start_task", {
+      const started = await tool<{ id: string }>("start_task", {
         project: "project",
         prompt: "合成行为策略验收，无需运行开发模型",
       });
+      // 创建只返回后台任务标识；通过公开快照等待租约交接完成。
+      const initial = await tool<
+        Task & { environmentReady: boolean; revision: string }
+      >("get_task", { id: started.id });
+      let snapshot = {
+        task: initial,
+        environmentReady: initial.environmentReady,
+        revision: initial.revision,
+      };
+      const deadline = Date.now() + 90000;
+      while (!snapshot.environmentReady) {
+        if (["failed", "stopped", "cleaned"].includes(snapshot.task.state))
+          throw new Error(
+            snapshot.task.error ?? `准备终止：${snapshot.task.state}`,
+          );
+        if (Date.now() >= deadline) throw new Error(`准备超时：${started.id}`);
+        snapshot = await tool<typeof snapshot>("wait_task", {
+          id: started.id,
+          afterRevision: snapshot.revision,
+          timeoutSeconds: 5,
+        });
+      }
+      return snapshot.task;
     },
     async finish() {
       try {

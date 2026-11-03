@@ -1,3 +1,4 @@
+import { requireEnvironmentReady } from "./readiness.js";
 import { readCredential } from "../config/credentials.js";
 import { requireRuntimeOwner } from "../environments/ownership.js";
 import { withTaskLock } from "./lock.js";
@@ -74,6 +75,7 @@ async function runTaskLocked(
   prompt?: string,
 ): Promise<Task> {
   const task = await getTask(home, id);
+  requireEnvironmentReady(task);
   await requireRuntimeOwner(home, task);
   const containerId = task.containerId;
   if (!containerId) throw new Error("任务没有运行环境");
@@ -164,7 +166,9 @@ async function runTaskLocked(
 
 // 宿主并发入口共享任务互斥边界。
 export async function runTask(home: string, id: string, prompt?: string) {
+  requireEnvironmentReady(await getTask(home, id));
   return withTaskLock(home, id, async () => {
+    requireEnvironmentReady(await getTask(home, id));
     try {
       return await runTaskLocked(home, id, prompt);
     } catch (error) {

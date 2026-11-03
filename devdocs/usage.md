@@ -107,7 +107,7 @@ node dist/src/cli/main.js cleanup <任务ID>
 
 运行 `host-config <项目标识>`，Codex 片段会为本服务设置工具授权和档案环境变量转发，合入前确认信任该本地服务；按照项目 `hostAgent.type` 输出 Codex TOML、Claude Code JSON 或 OpenCode JSON 的 MCP 配置片段。手动合入现有配置，工具不会覆盖用户配置。生成配置基于当前构建目录；移动安装目录后重新生成。
 
-MCP 命令为 `node <绝对构建目录>/src/cli/main.js --home <状态目录> mcp`。工具包括 `get_capabilities`、`wait_task`、`get_telemetry`、`get_audit`、`get_delivery_plan`、`report_task`、`start_task`、`run_task`、`get_task`、`get_result`、`prepare_delivery`、`review_task`、`apply_task`、`cancel_task`、`cleanup_task` 、`start_service`、`check_candidate`、`resume_task` 和 `read_artifact`。`start_task` 只创建环境；开发由 `run_task`、`prepare_delivery`、`check_candidate` 派发后台宿主进程并立即返回，可用 `wait_task` 等待或用 `get_task` 查询。排队状态 queued 会立即使旧审查失效。首次配置可由宿主 AI 在用户明确授权后通过 `initialize_relay` 注册项目目录；任务仍只接收已注册标识，MCP 不接收挂载或 Docker 权限参数。
+MCP 命令为 `node <绝对构建目录>/src/cli/main.js --home <状态目录> mcp`。工具包括 `get_capabilities`、`wait_task`、`get_telemetry`、`get_audit`、`get_delivery_plan`、`report_task`、`start_task`、`run_task`、`get_task`、`get_result`、`prepare_delivery`、`review_task`、`apply_task`、`cancel_task`、`cleanup_task` 、`start_service`、`check_candidate`、`resume_task` 和 `read_artifact`。`start_task` 冻结配置后立即返回任务 ID，在后台准备环境；等待 `environmentReady=true`、`nextAction=run_task` 后才调用 `run_task`。准备流程见[任务事件](task-events.md#等待环境准备)。开发由 `run_task`、`prepare_delivery`、`check_candidate` 派发后台宿主进程并立即返回，可用 `wait_task` 等待或用 `get_task` 查询。排队状态 queued 会立即使旧审查失效。首次配置可由宿主 AI 在用户明确授权后通过 `initialize_relay` 注册项目目录；任务仍只接收已注册标识，MCP 不接收挂载或 Docker 权限参数。
 
 ## 让宿主 Agent 选择等待方式
 

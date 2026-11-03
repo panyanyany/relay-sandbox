@@ -25,6 +25,7 @@ export async function scan(
   root: string,
   exclude: string[] = [],
   maxFileBytes = Infinity,
+  signal?: AbortSignal,
 ): Promise<Manifest> {
   const match = picomatch(
     exclude.flatMap((p) => [
@@ -35,7 +36,9 @@ export async function scan(
   );
   const result: Manifest = [];
   async function visit(dir: string): Promise<void> {
+    signal?.throwIfAborted();
     for (const item of (await readdir(join(root, dir))).sort()) {
+      signal?.throwIfAborted();
       const path = dir ? `${dir}/${item}` : item;
       if (match(path)) continue;
       const info = await lstat(join(root, path));
@@ -64,7 +67,13 @@ export async function scan(
       }
       if (!info.isFile())
         throw new Error(`不支持的文件类型，请显式排除: ${path}`);
-      const data = await hashStable(root, path, undefined, maxFileBytes);
+      const data = await hashStable(
+        root,
+        path,
+        undefined,
+        maxFileBytes,
+        signal,
+      );
       result.push({
         path,
         type: "file",
