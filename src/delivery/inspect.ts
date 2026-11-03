@@ -3,10 +3,15 @@ import { join } from "node:path";
 import { scan } from "../workspace/manifest.js";
 import { readPlan, sameEntry } from "./apply.js";
 import { getTask, taskPath } from "../tasks/store.js";
+import { taskProjectMode } from "../workspace/access.js";
 // 只诊断部分应用，不自动回放或回滚，以免覆盖崩溃后用户的再次修改。
 export async function inspectApplication(home: string, id: string) {
-  const task = await getTask(home, id),
-    root = taskPath(home, id),
+  const task = await getTask(home, id);
+  if ((await taskProjectMode(home, task)) === "direct")
+    throw new Error(
+      "直接挂载没有回写日志或自动回滚备份，请根据基线与原项目核查已有修改",
+    );
+  const root = taskPath(home, id),
     plan = await readPlan(join(root, "apply-plan.json"));
   const current = new Map(
     (await scan(task.projectRoot, task.config.project.exclude)).map((entry) => [

@@ -5,8 +5,14 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
+import uuid
 from urllib.parse import quote
 from mitmproxy import http
+
+# mitmproxy插件加载器不保证将脚本目录加入模块搜索路径。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from traffic_context import HEADER, decode_context
 
 spec = importlib.util.spec_from_file_location("traffic_match", "/opt/relay/traffic-match.py")
 matcher = importlib.util.module_from_spec(spec)
@@ -49,6 +55,8 @@ def observe(data, flow, location, encoding="identity"):
     result = matcher.match_content(data, entries, safe_host(flow.request.host),
                                    flow.request.port, location, content_encoding=encoding)
     for event in result["events"]:
+        if flow.metadata.get("relay-invocation"):
+            event["invocation"] = flow.metadata["relay-invocation"]
         append("events.jsonl", event)
     for gap in result["gaps"]:
         append("gaps.jsonl", gap)
@@ -56,6 +64,17 @@ def observe(data, flow, location, encoding="identity"):
 
 def requestheaders(flow: http.HTTPFlow):
     """头与目标仅在内存匹配；不保存完整URL或字段名/值。"""
+    # 错误示范：保留内部头会把进程元数据发送到外部；必须先删除再观察和转发。
+    values = flow.request.headers.get_all(HEADER)
+    if values:
+        del flow.request.headers[HEADER]
+        try:
+            if len(values) != 1:
+                raise ValueError("duplicate-context")
+            context = decode_context(values[0])
+            flow.metadata["relay-invocation"] = {**context, "requestId": str(uuid.uuid4())}
+        except (ValueError, TypeError, KeyError):
+            append("gaps.jsonl", {"reason": "invocation-context-invalid", "location": "header"})
     observe(flow.request.pretty_url, flow, "target")
     for _name, value in flow.request.headers.fields:
         observe(value, flow, "header")

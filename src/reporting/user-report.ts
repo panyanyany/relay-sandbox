@@ -20,6 +20,8 @@ export async function buildUserReport(home: string, id: string) {
     audit = await loadAudit(home, id);
   const monitoring = await telemetryStatus(home, id);
   const policy = await buildPolicySummary(home, id);
+  const direct =
+    policy.projectMode === "direct" || task.projectMode === "direct";
   const parsed = reviewSchema.safeParse(task.review);
   const review =
     parsed.success &&
@@ -48,7 +50,16 @@ export async function buildUserReport(home: string, id: string) {
     artifactDigest: task.artifactDigest ?? null,
     configDigest: task.configDigest,
     deliveryStatus,
-    originalProjectChangedByTask: applied ? true : unchanged ? false : null,
+    projectMode: policy.projectMode,
+    deliveryKind: direct ? "post_write_check" : "apply",
+    // 直接共享下无法区分开发Agent与宿主并发写入，不把确认检查冒充任务归因。
+    originalProjectChangedByTask: direct
+      ? null
+      : applied
+        ? true
+        : unchanged
+          ? false
+          : null,
     reviewVerdict: task.config.delivery.aiReview
       ? (review?.verdict ?? "not_reviewed")
       : "disabled",
@@ -68,9 +79,13 @@ export async function buildUserReport(home: string, id: string) {
     },
   };
   const deliveryText = {
-    applied: "已应用",
-    blocked: "已阻止交付",
-    not_applied: "尚未应用",
+    applied: direct
+      ? facts.checksDisabled
+        ? "原项目结果已确认（未执行交付检查）"
+        : "原项目事后检查已通过"
+      : "已应用",
+    blocked: direct ? "原项目事后检查未通过" : "已阻止交付",
+    not_applied: direct ? "尚未完成原项目事后检查" : "尚未应用",
     unknown: "应用结果需人工核查",
   }[deliveryStatus];
   const auditHighlights = audit.events
@@ -85,11 +100,13 @@ export async function buildUserReport(home: string, id: string) {
     .slice(0, 10);
   const lines = [
     `任务 ${id}。交付：${deliveryText}。`,
-    applied
-      ? "原项目：本任务已应用修改。"
-      : unchanged
-        ? "原项目：未由本任务应用修改。"
-        : "原项目：本任务的修改影响尚不能确认，请检查应用日志和备份。",
+    direct
+      ? "原项目：开发期间可能已被直接修改；检查或审核拒绝不会撤销已有修改。"
+      : applied
+        ? "原项目：本任务已应用修改。"
+        : unchanged
+          ? "原项目：未由本任务应用修改。"
+          : "原项目：本任务的修改影响尚不能确认，请检查应用日志和备份。",
     `审核：${facts.reviewVerdict}。${review?.summary ?? ""}`,
     ...facts.findings
       .slice(0, 20)
@@ -176,6 +193,8 @@ export async function prepareUserReport(home: string, id: string) {
       userMessage: report.userMessage,
       reviewVerdict: report.reviewVerdict,
       deliveryStatus: report.deliveryStatus,
+      projectMode: report.projectMode,
+      deliveryKind: report.deliveryKind,
       originalProjectChangedByTask: report.originalProjectChangedByTask,
       cleanupStatus: report.cleanupStatus,
       emissionStatus: "prepared",

@@ -32,7 +32,7 @@
 | [需求](devdocs/requirements.md) | 使用流程、完整副本与配置排除、同任务服务互通及保护边界、中断后限期保留、重点审计及定时回溯清理 |
 | [架构草案](devdocs/architecture.md) | 执行职责、已确认的访问边界与交付建议；开发版实现及剩余验证见实现验证记录 |
 | [验证计划](devdocs/validation.md) | 功能、访问、交付及内层行为审计验收、候选专项检查；中断恢复和到期回收后置；已部分实测，完整专项待验收 |
-| [决策与待确认事项](devdocs/decisions.md) | 需求对齐记录、整项目复制与配置排除、网络边界、重点审计、可配置交付检查、失败暂停交付、审计未知结果提醒、已确认需求基线、中文名、双侧 Agent 配置、稳定化延期及定时汇总清理 |
+| [决策与待确认事项](devdocs/decisions.md) | 需求对齐记录、整项目复制与配置排除、默认隔离及可配置直接挂载、网络边界、重点审计、可配置交付检查、失败暂停交付、审计未知结果提醒、已确认需求基线、中文名、双侧 Agent 配置、稳定化延期及定时汇总清理 |
 | [项目调研](references/projects.md) | 11 个仓库的特性、默认行为、需求适配与验证项 |
 | [需求对照表](references/capability-matrix.md) | R01–R10 比较、网络边界、试配路线；新增 R11 审计待核查 |
 | [资料索引](references/sources.md) | 官方资料、原帖、11 个固定提交与证据范围 |
@@ -51,7 +51,9 @@
 | [结构化审核](devdocs/review.md) | 严格审核 Schema、CLI/MCP 提交、分类与恶意中转站测试 |
 | [行为策略](devdocs/behavior-policy.md) | 宿主授权、冻结网络例外、目录模式、默认关闭诱饵、显式工具与覆盖边界 |
 | [运行说明](devdocs/usage.md) | 安装构建、模型档案、CLI/MCP 能力发现、有界等待、交付、服务、真实模型测试、部分审计及限制 |
-| [实现验证记录](devdocs/implementation-validation.md) | 实际测试、三种开发 Agent 联调、Codex 宿主上报、指标崩溃留证、维护性修复回归及剩余验收 |
+| [实现验证记录](devdocs/implementation-validation.md) | 实际测试、三种开发 Agent 联调、Codex 宿主上报、指标崩溃留证、维护性修复回归、诱饵调用关联、项目访问模式、REV-001–REV-005 回归及剩余验收 |
+| [项目访问方式](devdocs/project-access.md) | 默认隔离、宿主显式直接挂载、停止后检查、采集限制与恢复清理 |
+| [调用关联](devdocs/traffic-correlation.md) | 显式入口进程声明、调用与请求编号、内部头剥离、功能就绪探针、证据边界及真实验收 |
 | [维护性修复](devdocs/maintenance.md) | 上报版本、授权容量、证据预算、环境收尾与脱敏诊断的契约及回归验证 |
 | [项目结构](devdocs/structure.md) | 目录用途与中文文件树 |
 

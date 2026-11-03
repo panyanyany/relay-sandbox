@@ -39,6 +39,10 @@ network:
 
 任务创建时冻结配置，并与项目配置共同生成审核摘要。修改文件只影响新任务。恢复不读取新授权；没有策略快照的旧任务保持旧的限制性网络规则。
 
+## 配置主项目访问方式
+
+宿主授权文件支持 `project: { mode: isolated }`（默认）或 `project: { mode: direct }`。直接模式只挂载已登记的原项目，不从项目文件接受源路径或授权；有排除规则时拒绝创建。主项目和额外目录授权分开，模式与其他授权共同冻结。直接修改立即生效，后续检查不回滚，详见[项目访问方式](project-access.md)。
+
 ## 显式启用诱饵
 
 把 `decoys.enabled` 改为 `true`，并明确列出需要观察的已验证客户端。`clients: []` 表示没有配置受控客户端，不会自动启用所有工具。
@@ -62,7 +66,7 @@ decoys:
 | wget | GNU Wget 1.21.3 | 显式 CA 文件；`wget --no-config` |
 | Python | 3.11.2 / urllib.request@3.11.2 | 独立 urllib 请求入口和局部 SSLContext |
 
-只有符合组合及支持参数的显式 helper 调用可解密。开发 Agent 的当轮提示会提供当前主环境工具路径。目录格式为 `/opt/relay-sandbox/audit/<runtimeId>/`，包含公共 CA、`clients.json`、`traffic-client.py` 和 `traffic-python.py`。curl/wget 通过前者传入 catalog 和原工具参数，Python 通过后者传入 catalog、方法、正文和 URL。这不是对任意 Python 程序的拦截。
+只有符合组合及支持参数的显式 helper 调用可解密。开发 Agent 的当轮提示会提供当前主环境工具路径。目录格式为 `/opt/relay-sandbox/audit/<runtimeId>/`，包含公共 CA、`clients.json`、`traffic-client.py`、`traffic-python.py` 和共享的 `traffic_context.py`。curl/wget 通过前者传入 catalog 和原工具参数，Python 通过后者传入 catalog、方法、正文和 URL。这不是对任意 Python 程序的拦截。
 
 不替换系统工具、PATH、全局代理或常用凭据变量。未知版本/参数/信任配置在首个请求前免解密；代理预检不可用也直通，已开始的请求不自动重放。所有路径保留真实站点证书校验；坏证书仍失败。显式启动全新业务请求由调用方决定。
 
@@ -72,7 +76,7 @@ decoys:
 
 `get_result.policy` 和 `report_task` 报告冻结授权、资源模式、最小命中及覆盖缺口。运行 `supervise` 才会定期刷新代理存活状态；MCP 本身没有事件钩子、推送或自动唤醒。宿主可通过能力声明选择有界等待或轮询。
 
-命中只含时间、目标主机/端口、诱饵编号、编码和位置。支持原值、percent、标准及 URL-safe Base64；AWS 派生签名、任意变换和免解密流量不保证匹配。命中不等于恶意或远端已收到；未命中不等于没有泄漏。大请求、未知压缩、缺失/损坏/轮转/截断证据均是覆盖缺口。
+命中包含时间、目标主机/端口、诱饵编号、编码和位置；受控入口还可附带调用编号、请求编号及客户端声明的容器内进程信息。详见[调用关联](traffic-correlation.md)。支持原值、percent、标准及 URL-safe Base64；AWS 派生签名、任意变换和免解密流量不保证匹配。命中不等于恶意或远端已收到；未命中不等于没有泄漏。大请求、未知压缩、缺失/损坏/轮转/截断证据均是覆盖缺口。
 
 普通内部安装和配置修改按容器用户权限允许，不自动提权。运行期风险和观察失败只用于提醒，不单独否决正确代码。强制隔离建立失败不派发；检测到失效须停止，停止失败如实记录。候选代码本身的恶意行为仍由启用的宿主审核拒绝。
 

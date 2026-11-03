@@ -6,7 +6,7 @@ import re
 import stat
 import sys
 
-NAMES = {"traffic-client.py", "traffic-python.py", "clients.json", "ca.pem"}
+NAMES = {"traffic-client.py", "traffic-python.py", "clients.json", "ca.pem", "traffic_context.py"}
 LIMIT = 131072
 
 
@@ -16,7 +16,7 @@ def install(payload):
     files = payload.get("files", [])
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}", runtime):
         raise ValueError("invalid-runtime")
-    if not isinstance(files, list) or not 1 <= len(files) <= 4:
+    if not isinstance(files, list) or not 1 <= len(files) <= 5:
         raise ValueError("invalid-files")
     decoded, names = [], set()
     for item in files:

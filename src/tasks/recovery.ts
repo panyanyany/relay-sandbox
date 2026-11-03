@@ -1,9 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { readFrozenPolicy } from "../permissions/freeze.js";
 import { formatError } from "../audit/redaction.js";
 import { stopTaskResources } from "./cleanup.js";
 import { refreshEnvironments } from "./environment-lifecycle.js";
-import { installEnvironment } from "./environment-install.js";
+import { restartTaskRuntime } from "./restart.js";
 import { startMonitor } from "../monitoring/monitor.js";
 import { collectGarbage } from "./garbage-collection.js";
 import { readFile, unlink } from "node:fs/promises";
@@ -15,6 +14,7 @@ import { installPolicy } from "../network/policy.js";
 import { profileSchema } from "../config/schema.js";
 import { readJson } from "../storage/files.js";
 import type { Task } from "./types.js";
+import { taskProjectMode, validateDirectRuntime } from "../workspace/access.js";
 // 单次协调便于故障注入测试；Docker 不可用直接抛出，不虚构清理成功。
 export async function superviseOnce(
   home: string,
@@ -133,25 +133,15 @@ export async function resumeTask(home: string, id: string) {
     const profile = profileSchema.parse(
       await readJson(join(taskPath(home, id), "profile.json")),
     );
-    const policy = await readFrozenPolicy(home, id);
-    const docker = dockerClient(),
-      container = docker.getContainer(task.containerId);
+    const docker = dockerClient();
     try {
       // 先回收旧代理和旧进程，恢复只保留文件；不从最新宿主配置扩大授权。
       await stopTaskResources(home, task);
+      if ((await taskProjectMode(home, task)) === "direct")
+        await validateDirectRuntime(home, task, docker);
       task.state = "preparing";
       await saveTask(home, task);
-      await container.start();
-      await installPolicy(
-        docker,
-        task.containerId,
-        task.networkId,
-        profile.networkImage,
-        task.config.network.hostAddresses,
-        policy
-          ? { mode: "default-open", grants: policy.network.grants }
-          : undefined,
-      );
+      await restartTaskRuntime(home, task, profile, "resume");
     } catch (error) {
       let failure = error;
       try {
@@ -167,22 +157,6 @@ export async function resumeTask(home: string, id: string) {
       task.error = formatError(failure);
       await saveTask(home, task);
       throw failure;
-    }
-    if (policy) {
-      try {
-        await installEnvironment(docker, {
-          home,
-          taskId: id,
-          runtimeId: `${id}-resume-${randomUUID().slice(0, 8)}`,
-          containerId: task.containerId,
-          policy,
-          role: "main",
-        });
-      } catch (error) {
-        task.warnings.push(
-          `恢复通信审计不可用，开发继续：${formatError(error)}`,
-        );
-      }
     }
     task.state = "preparing";
     delete task.expiresAt;

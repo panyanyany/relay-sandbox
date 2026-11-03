@@ -154,6 +154,12 @@ export async function installEnvironment(
         ),
         mode: 0o755,
       },
+      {
+        name: "traffic_context.py",
+        content: await readFile(
+          new URL("../../scripts/traffic_context.py", import.meta.url),
+        ),
+      },
       { name: "clients.json", content: JSON.stringify(catalog) },
       { name: "ca.pem", content: traffic.caCertificate },
     ]);

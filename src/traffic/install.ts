@@ -11,6 +11,7 @@ export interface PublicTrafficFile {
 const names = new Set([
   "traffic-client.py",
   "traffic-python.py",
+  "traffic_context.py",
   "clients.json",
   "ca.pem",
 ]);
@@ -35,7 +36,7 @@ export async function installTrafficFiles(
   validateId(runtimeId);
   if (
     !files.length ||
-    files.length > 4 ||
+    files.length > 5 ||
     new Set(files.map((file) => file.name)).size !== files.length
   )
     throw new Error("公共工具清单无效");

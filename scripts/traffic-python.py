@@ -10,6 +10,7 @@ import shutil
 import ssl
 import sys
 from urllib.parse import urlsplit
+from traffic_context import HEADER, invocation_header
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
 
@@ -81,6 +82,10 @@ def main():
     proxy = ProxyHandler() if gap else ProxyHandler({"http": config["endpoint"], "https": config["endpoint"]})
     opener = build_opener(proxy, HTTPSHandler(context=context))
     request = Request(args.url, data=args.data.encode() if args.data is not None else None, method=args.method)
+    if not gap:
+        context_header = invocation_header("python", identifier)
+        if context_header:
+            request.add_header(HEADER, context_header)
     with opener.open(request, timeout=8) as response:
         shutil.copyfileobj(response, sys.stdout.buffer, length=65536)
 

@@ -143,6 +143,10 @@ export async function readTrafficEvidence(home: string, id: string) {
       gaps,
     );
     scan: for (const name of ids.slice(0, 128)) {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(name)) {
+        gaps.add("invalid-environment-id");
+        continue;
+      }
       for (const kind of ["events", "gaps"] as const)
         for (const suffix of ["", ".1", ".2"]) {
           const remaining = EVIDENCE_MAX_BYTES - bytes;
@@ -200,7 +204,8 @@ export async function readTrafficEvidence(home: string, id: string) {
                 continue;
               }
               eventCount++;
-              if (events.length < 100) events.push(parsed.data);
+              if (events.length < 100)
+                events.push({ ...parsed.data, runtimeId: name });
               else {
                 truncated = true;
                 gaps.add("event-limit");

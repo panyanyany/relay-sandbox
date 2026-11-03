@@ -26,6 +26,9 @@ export interface Task {
   id: string;
   projectId: string;
   projectRoot: string;
+  // 宿主冻结模式的诊断副本；旧任务省略时仍按隔离处理。
+  projectMode?: "isolated" | "direct";
+  projectIdentity?: string;
   prompt: string;
   config: Config;
   configDigest: string;

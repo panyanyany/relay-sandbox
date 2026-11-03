@@ -1,3 +1,4 @@
+import { trafficReadinessProbe } from "./readiness.js";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type Docker from "dockerode";
@@ -94,18 +95,15 @@ export async function startTraffic(
       },
     });
     await container.start();
-    // 公CA出现且监听成功才接入客户端；不关闭任何上游证书验证。
-    for (let index = 0; index < 100; index++) {
+    // 公CA出现且插件实际剥离内部头才接入客户端；不关闭上游证书验证。
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
       if (!(await container.inspect()).State.Running)
         throw new Error("通信审计代理启动失败");
       try {
         const certificate = await readFile(join(ca, "mitmproxy-ca-cert.pem"));
         const health = await container.exec({
-          Cmd: [
-            "python3",
-            "-c",
-            "import socket;socket.create_connection(('127.0.0.1',18080),1).close()",
-          ],
+          Cmd: ["python3", "-c", trafficReadinessProbe],
           User: "0:0",
           WorkingDir: "/",
           AttachStdout: true,

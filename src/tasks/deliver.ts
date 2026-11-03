@@ -5,6 +5,8 @@ import { isReady } from "../delivery/policy.js";
 import { applyChanges, readPlan, withProjectLock } from "../delivery/apply.js";
 import { manifestDigest, scan } from "../workspace/manifest.js";
 import { reviewSchema } from "../agents/host/review-schema.js";
+import { taskProjectMode } from "../workspace/access.js";
+import { confirmDirectProject } from "./direct-project.js";
 // 只接受宿主入口提交的摘要绑定结论，内层无法接触宿主 MCP。
 async function reviewTaskLocked(home: string, id: string, input: unknown) {
   const decision = reviewSchema.parse(input);
@@ -41,14 +43,17 @@ async function applyTaskLocked(home: string, id: string) {
   task.applicationStatus = "in_progress";
   await saveTask(home, task);
   try {
-    await withProjectLock(task.projectRoot, () =>
-      applyChanges(
-        task.projectRoot,
-        join(root, "candidate"),
-        join(root, "backup"),
-        plan,
-      ),
-    );
+    if ((await taskProjectMode(home, task)) === "direct") {
+      await confirmDirectProject(home, task);
+    } else
+      await withProjectLock(task.projectRoot, () =>
+        applyChanges(
+          task.projectRoot,
+          join(root, "candidate"),
+          join(root, "backup"),
+          plan,
+        ),
+      );
     task.state = "completed";
     task.applicationStatus = "applied";
     if (!task.config.delivery.aiReview && !task.config.delivery.checks.length)

@@ -28,6 +28,7 @@ export async function trafficGuidance(
     `python3 ${root}/traffic-python.py ${root}/clients.json --method GET URL`,
     "只有已配置且工具版本、参数和信任配置匹配的组合进入内容审计；其他组合使用普通通信路径，覆盖未知。",
     "Python入口用于明确的HTTP请求，不接管任意Python程序。保持任务既有PATH、环境变量和证书验证设置。",
+    "受控入口附带调用编号及容器内最小进程声明，代理命中可关联；这是客户端声明，不是内核核验或业务调用栈。",
     ordinary,
   ].join("\n");
 }

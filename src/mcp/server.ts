@@ -172,7 +172,7 @@ export async function serveMcp(home: string): Promise<void> {
     "prepare_delivery",
     {
       description:
-        "后台生成最终候选并执行配置的检查和有限返工；派发后等待状态。",
+        "后台生成最终候选并执行配置的检查和有限返工；直接挂载模式先停止任务写入，再作事后检查。派发后等待状态。",
       inputSchema: { id: z.string() },
     },
     async ({ id }) => text(() => dispatchOperation(home, id, "prepare")),
@@ -191,7 +191,8 @@ export async function serveMcp(home: string): Promise<void> {
   server.registerTool(
     "apply_task",
     {
-      description: "在满足冻结的交付策略后应用最终候选。",
+      description:
+        "满足冻结的交付策略后，隔离模式应用最终候选；直接挂载模式只确认事后检查，不回写或回滚。",
       inputSchema: { id: z.string() },
     },
     async ({ id }) => text(() => applyTask(home, id)),

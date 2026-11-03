@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, test } from "vitest";
+import { trafficEventSchema } from "../../src/traffic/events.js";
 import { configSchema } from "../../src/config/schema.js";
 import { hostPermissionsSchema } from "../../src/permissions/schema.js";
 import { dockerClient } from "../../src/docker/client.js";
@@ -58,6 +59,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
       "import ssl,threading,pathlib",
       "class H(BaseHTTPRequestHandler):",
       " def do_POST(self):",
+      "  if self.headers.get_all('X-Relay-Sandbox-Invocation'): self.send_error(400);return",
       "  p=pathlib.Path('/tmp/count');p.write_text(str(int(p.read_text())+1) if p.exists() else '1');self.rfile.read(int(self.headers.get('Content-Length',0)));self.send_response(503 if self.path=='/fail' else 200);self.send_header('Content-Length','2');self.end_headers();self.wfile.write(b'ok')",
       " def log_message(self,*args): pass",
       "threading.Thread(target=HTTPServer(('127.0.0.1',21080),H).serve_forever,daemon=True).start()",
@@ -127,6 +129,10 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         "/tmp/python-proxy-ca.pem",
       );
       await put(
+        "/tmp/traffic_context.py",
+        await readFile("scripts/traffic_context.py", "utf8"),
+      );
+      await put(
         "/tmp/traffic-python.py",
         await readFile("scripts/traffic-python.py", "utf8"),
       );
@@ -163,6 +169,17 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
           '"decoyId":"aws-01"',
         ),
       ).toBe(true);
+      const firstEvent = trafficEventSchema.parse(
+        JSON.parse(
+          (await readFile(traffic!.eventsPath, "utf8")).trim().split("\n")[0]!,
+        ),
+      );
+      expect(firstEvent.invocation).toMatchObject({
+        tool: "python",
+        source: "client-reported",
+        pidNamespace: "container",
+      });
+      expect(firstEvent.invocation?.pid).toBeGreaterThan(0);
       await put("/tmp/python-proxy-ca.pem", "invalid-ca");
       const unavailableCA = await invoke("http://127.0.0.1:21080");
       expect(unavailableCA.exitCode).toBe(0);

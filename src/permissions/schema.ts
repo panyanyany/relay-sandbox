@@ -57,6 +57,11 @@ export const auditedClientSchema = z
 export const hostPermissionsSchema = z
   .object({
     version: z.literal(1).default(1),
+    // 缺省字段不补写，保持旧冻结快照的摘要；默认隔离由访问模块解释。
+    project: z
+      .object({ mode: z.enum(["isolated", "direct"]) })
+      .strict()
+      .optional(),
     network: z
       .object({ grants: z.array(networkGrantSchema).default([]) })
       .strict()

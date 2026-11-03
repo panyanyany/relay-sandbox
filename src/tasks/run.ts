@@ -16,6 +16,11 @@ import { getTask, saveTask, taskPath } from "./store.js";
 import { formatError } from "../audit/redaction.js";
 import { withFinalizer } from "../storage/finalize.js";
 import type { Task } from "./types.js";
+import { taskProjectMode, validateDirectRuntime } from "../workspace/access.js";
+import { MAX_EXPORT_FILE_BYTES } from "../workspace/stable-file.js";
+import { snapshot } from "../workspace/snapshot.js";
+import { stopTaskResources } from "./cleanup.js";
+import { startDirectProject } from "./direct-project.js";
 // 重新收集时销毁旧的宿主结果目录，不复用可能含链接的旧导出目标。
 export async function collectTask(home: string, task: Task): Promise<Task> {
   if (!task.containerId) throw new Error("任务没有容器");
@@ -28,7 +33,18 @@ export async function collectTask(home: string, task: Task): Promise<Task> {
   const root = taskPath(home, task.id);
   const result = join(root, "result");
   await rm(result, { recursive: true, force: true });
-  await download(dockerClient(), task.containerId, result);
+  if ((await taskProjectMode(home, task)) === "direct") {
+    try {
+      await stopTaskResources(home, task);
+      await validateDirectRuntime(home, task, dockerClient());
+      await snapshot(task.projectRoot, result, [], MAX_EXPORT_FILE_BYTES);
+    } catch (error) {
+      task.state = "failed";
+      task.error = formatError(error);
+      await saveTask(home, task);
+      throw error;
+    }
+  } else await download(dockerClient(), task.containerId, result);
   const manifest = await scan(result);
   task.artifactDigest = manifestDigest(manifest);
   delete task.review;
@@ -69,6 +85,8 @@ async function runTaskLocked(
   );
   const key = process.env[profile.apiKeyEnv];
   if (!key) throw new Error("专用中转站凭据不可用");
+  if ((await taskProjectMode(home, task)) === "direct")
+    await startDirectProject(home, task, profile);
   // 保留本轮用户需求，附加可选入口说明，不改任务原始prompt记录。
   const guidance = await trafficGuidance(home, id);
   const effectivePrompt = `${prompt ?? task.prompt}\n\n${guidance}`;

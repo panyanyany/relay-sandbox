@@ -1,5 +1,5 @@
-import { readdir, lstat, readlink, open, realpath } from "node:fs/promises";
-import { constants } from "node:fs";
+import { readdir, lstat, readlink } from "node:fs/promises";
+import { hashStable } from "./stable-file.js";
 import { join, relative, isAbsolute } from "node:path";
 import picomatch from "picomatch";
 import { digest } from "../storage/hash.js";
@@ -19,52 +19,12 @@ export function inside(root: string, target: string): boolean {
   const rel = relative(root, target);
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
-// 普通文件通过 O_NOFOLLOW 打开，前后元数据变化时立即失败，避免生成混合快照。
-export async function readStable(root: string, path: string): Promise<Buffer> {
-  const parts = path.split("/");
-  if (parts.some((part) => !part || part === "." || part === ".."))
-    throw new Error(`文件路径非法: ${path}`);
-  let parent = await open(
-    await realpath(root),
-    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-  );
-  try {
-    // Linux procfd 固定已打开的父目录，逐层 O_NOFOLLOW，拒绝祖先链接竞态。
-    for (const part of parts.slice(0, -1)) {
-      const next = await open(
-        `/proc/self/fd/${parent.fd}/${part}`,
-        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-      );
-      await parent.close();
-      parent = next;
-    }
-    const fd = await open(
-      `/proc/self/fd/${parent.fd}/${parts.at(-1)!}`,
-      constants.O_RDONLY | constants.O_NOFOLLOW,
-    );
-    try {
-      const before = await fd.stat({ bigint: true });
-      if (!before.isFile()) throw new Error(`不支持的文件: ${path}`);
-      const data = await fd.readFile(),
-        after = await fd.stat({ bigint: true });
-      if (
-        before.size !== after.size ||
-        before.mtimeNs !== after.mtimeNs ||
-        before.ctimeNs !== after.ctimeNs
-      )
-        throw new Error(`复制期间文件变化: ${path}`);
-      return data;
-    } finally {
-      await fd.close();
-    }
-  } finally {
-    await parent.close();
-  }
-}
+export { readStable } from "./stable-file.js";
 // 不使用 Git 忽略规则，目录排除显式匹配自身及其后代。
 export async function scan(
   root: string,
   exclude: string[] = [],
+  maxFileBytes = Infinity,
 ): Promise<Manifest> {
   const match = picomatch(
     exclude.flatMap((p) => [
@@ -104,13 +64,13 @@ export async function scan(
       }
       if (!info.isFile())
         throw new Error(`不支持的文件类型，请显式排除: ${path}`);
-      const data = await readStable(root, path);
+      const data = await hashStable(root, path, undefined, maxFileBytes);
       result.push({
         path,
         type: "file",
         mode: info.mode & 0o777,
-        hash: digest(data),
-        size: data.length,
+        hash: data.hash,
+        size: data.size,
       });
     }
   }

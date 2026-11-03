@@ -1,3 +1,4 @@
+import { formatError } from "../audit/redaction.js";
 import { withTaskLock } from "./lock.js";
 import { join } from "node:path";
 import { rm, cp } from "node:fs/promises";
@@ -5,6 +6,8 @@ import { snapshot } from "../workspace/snapshot.js";
 import { verifyCandidate } from "./candidate.js";
 import { mergeCandidate } from "../delivery/merge.js";
 import { getTask, saveTask, taskPath } from "./store.js";
+import { taskProjectMode } from "../workspace/access.js";
+import { prepareDirectProject } from "./direct-project.js";
 // 合并、检查、应用由任务层顺序编排，不让三个模块彼此递归调用。
 async function prepareDeliveryLocked(home: string, id: string) {
   const task = await getTask(home, id);
@@ -17,6 +20,23 @@ async function prepareDeliveryLocked(home: string, id: string) {
     candidate = join(root, "candidate");
   await rm(current, { recursive: true, force: true });
   await rm(candidate, { recursive: true, force: true });
+  if ((await taskProjectMode(home, task)) === "direct") {
+    // 重新准备前废止旧审核，失败后也不能继续使用此前的事后检查结论。
+    task.deliveryPrepared = false;
+    delete task.review;
+    task.checks = [];
+    task.state = "checking";
+    await saveTask(home, task);
+    try {
+      await prepareDirectProject(home, task);
+      return await verifyCandidate(home, task);
+    } catch (error) {
+      task.state = "failed";
+      task.error = formatError(error);
+      await saveTask(home, task);
+      throw error;
+    }
+  }
   await snapshot(task.projectRoot, current, task.config.project.exclude);
   await cp(current, candidate, {
     recursive: true,

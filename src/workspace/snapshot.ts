@@ -1,14 +1,7 @@
-import {
-  mkdir,
-  writeFile,
-  symlink,
-  lstat,
-  readFile,
-  chmod,
-} from "node:fs/promises";
+import { mkdir, open, symlink, lstat, readFile, chmod } from "node:fs/promises";
 import { join, dirname, resolve } from "node:path";
-import { scan, readStable, inside, type Manifest } from "./manifest.js";
-import { digest } from "../storage/hash.js";
+import { scan, inside, type Manifest } from "./manifest.js";
+import { hashStable } from "./stable-file.js";
 
 // 首版拒绝外部 Git 管理引用，而不是将宿主管理目录复制进内层。
 async function validateGit(root: string): Promise<void> {
@@ -37,12 +30,13 @@ export async function snapshot(
   root: string,
   dest: string,
   exclude: string[],
+  maxFileBytes = Infinity,
 ): Promise<Manifest> {
   if (inside(resolve(root), resolve(dest)))
     throw new Error("任务目录不能位于原项目内");
   if (!exclude.includes(".git") && !exclude.includes(".git/**"))
     await validateGit(root);
-  const manifest = await scan(root, exclude);
+  const manifest = await scan(root, exclude, maxFileBytes);
   await mkdir(dest, { recursive: true, mode: 0o700 });
   for (const entry of manifest) {
     const target = join(dest, entry.path);
@@ -55,15 +49,29 @@ export async function snapshot(
       await symlink(entry.link!, target);
       continue;
     }
-    const data = await readStable(root, entry.path);
-    if (digest(data) !== entry.hash)
-      throw new Error(`复制期间内容变化: ${entry.path}`);
-    await writeFile(target, data, { mode: entry.mode, flag: "wx" });
+    const output = await open(target, "wx", entry.mode);
+    try {
+      const copied = await hashStable(
+        root,
+        entry.path,
+        async (chunk) => {
+          await output.writeFile(chunk);
+        },
+        maxFileBytes,
+      );
+      if (copied.hash !== entry.hash)
+        throw new Error(`复制期间内容变化: ${entry.path}`);
+    } finally {
+      await output.close();
+    }
   }
   for (const entry of [...manifest].reverse())
     if (entry.type === "directory")
       await chmod(join(dest, entry.path), entry.mode);
-  if (JSON.stringify(await scan(root, exclude)) !== JSON.stringify(manifest))
+  if (
+    JSON.stringify(await scan(root, exclude, maxFileBytes)) !==
+    JSON.stringify(manifest)
+  )
     throw new Error("复制期间项目发生变化，请重新创建任务");
   return manifest;
 }

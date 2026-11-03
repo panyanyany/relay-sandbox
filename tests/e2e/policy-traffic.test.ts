@@ -106,6 +106,26 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         policy: Awaited<ReturnType<typeof buildPolicySummary>>;
       }>("get_result", { id: fixture.task.id });
       expect(result.policy.traffic.eventCount).toBeGreaterThanOrEqual(4);
+      expect(
+        result.policy.traffic.events.every(
+          (event) => event.runtimeId === fixture.state.summary.runtimeId,
+        ),
+      ).toBe(true);
+      const contexts = result.policy.traffic.events.map(
+        (event) => event.invocation,
+      );
+      expect(
+        contexts.every((context) => context?.source === "client-reported"),
+      ).toBe(true);
+      expect(
+        new Set(contexts.map((context) => context?.invocationId)).size,
+      ).toBe(4);
+      expect(new Set(contexts.map((context) => context?.requestId)).size).toBe(
+        4,
+      );
+      expect(new Set(contexts.map((context) => context?.tool))).toEqual(
+        new Set(["curl", "wget", "python"]),
+      );
       const encodings = result.policy.traffic.events.map(
         (event) => event.encoding,
       );
@@ -152,6 +172,8 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         { id: fixture.task.id },
       );
       expect(report.userMessage).toContain("不等同恶意");
+      expect(report.userMessage).toContain("PID=");
+      expect(report.userMessage).toContain("未经内核核验");
       expect(report.userMessage).toContain("未命中不代表");
       for (const forbidden of [...fixture.values, marker])
         expect(JSON.stringify(report).includes(forbidden)).toBe(false);

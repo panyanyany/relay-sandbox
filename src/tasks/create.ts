@@ -12,6 +12,11 @@ import { createRuntime } from "../docker/runtime.js";
 import { upload } from "../docker/archive.js";
 import { saveTask, taskPath } from "./store.js";
 import type { Task } from "./types.js";
+import {
+  projectMode,
+  projectMounts,
+  projectIdentity,
+} from "../workspace/access.js";
 // 创建时冻结配置，模型不能通过修改项目文件改变当前交付条件。
 export async function createTask(
   home: string,
@@ -53,7 +58,16 @@ export async function createTask(
       config,
     );
     task.configDigest = frozenDigest;
+    task.projectMode = projectMode(policy);
     await saveTask(home, task);
+    const mounts = await projectMounts(home, projectRoot, config, policy);
+    if (task.projectMode === "direct") {
+      task.projectIdentity = await projectIdentity(projectRoot);
+      task.warnings.push(
+        "原项目直接挂载：开发期间写入和删除立即生效，交付检查只作事后检查，不自动回滚",
+      );
+      await saveTask(home, task);
+    }
     await writeJson(join(taskPath(home, id), "profile.json"), profile);
     const baseline = await snapshot(
       projectRoot,
@@ -62,6 +76,7 @@ export async function createTask(
     );
     await writeJson(join(taskPath(home, id), "baseline.json"), baseline);
     const options = await prepareEnvironment(home, task, policy, false);
+    options.mounts = [...(options.mounts ?? []), ...(mounts ?? [])];
     const handle = await createRuntime(
       dockerClient(),
       id,
@@ -73,11 +88,12 @@ export async function createTask(
     );
     Object.assign(task, handle);
     await saveTask(home, task);
-    await upload(
-      dockerClient(),
-      handle.containerId,
-      join(taskPath(home, id), "baseline"),
-    );
+    if (task.projectMode !== "direct")
+      await upload(
+        dockerClient(),
+        handle.containerId,
+        join(taskPath(home, id), "baseline"),
+      );
     await installEnvironment(dockerClient(), {
       home,
       taskId: id,

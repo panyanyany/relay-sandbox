@@ -5,6 +5,7 @@ for (const name of [
   "safe-apply.py",
   "traffic-client.py",
   "traffic-python.py",
+  "traffic_context.py",
   "decoy-install.py",
   "traffic-install.py",
 ]) {

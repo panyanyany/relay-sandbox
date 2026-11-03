@@ -76,6 +76,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
       "import ssl,threading",
       "class H(BaseHTTPRequestHandler):",
       " def do_POST(self):",
+      "  if self.headers.get_all('X-Relay-Sandbox-Invocation'): self.send_error(400);return",
       "  self.rfile.read(int(self.headers.get('Content-Length','0')));self.send_response(200);self.end_headers();self.wfile.write(b'ok')",
       " def log_message(self,*args): pass",
       "threading.Thread(target=HTTPServer(('127.0.0.1',18081),H).serve_forever,daemon=True).start()",
@@ -159,6 +160,44 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
       expect((await request("https://127.0.0.1:18082", body)).output).toBe(
         "ok",
       );
+      // 错误示范：坏头不能原样写盘，也不能阻断普通请求；仍记录未归因命中。
+      const invalidMarker = "PRIVATE_INVALID_CONTEXT_NOT_FOR_EVIDENCE";
+      expect(
+        (
+          await request("https://127.0.0.1:18082", [
+            ...body,
+            "--header",
+            `X-Relay-Sandbox-Invocation: ${invalidMarker}`,
+          ])
+        ).exitCode,
+      ).toBe(0);
+      expect(await readFile(traffic!.gapsPath, "utf8")).toContain(
+        "invocation-context-invalid",
+      );
+      expect(
+        (await readFile(traffic!.eventsPath, "utf8")).includes(invalidMarker),
+      ).toBe(false);
+      expect(
+        (await readFile(traffic!.gapsPath, "utf8")).includes(invalidMarker),
+      ).toBe(false);
+      expect(
+        (
+          await request("https://127.0.0.1:18082", [
+            ...body,
+            "--header",
+            "X-Relay-Sandbox-Invocation: duplicate-one",
+            "--header",
+            "x-relay-sandbox-invocation: duplicate-two",
+          ])
+        ).exitCode,
+      ).toBe(0);
+      const unlinked = JSON.parse(
+        (await readFile(traffic!.eventsPath, "utf8"))
+          .trim()
+          .split("\n")
+          .at(-1)!,
+      );
+      expect(unlinked.invocation).toBeUndefined();
       const gateway = (await docker.getNetwork(runtime.networkId).inspect())
         .IPAM!.Config![0]!.Gateway;
       expect(

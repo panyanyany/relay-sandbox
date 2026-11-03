@@ -35,11 +35,17 @@ async function canonicalDirectory(source: string): Promise<string> {
   return source;
 }
 // 额外资源不沿链接、硬链接或子挂载读取授权范围外的数据。
-async function validateTree(root: string): Promise<void> {
+async function validateTree(
+  root: string,
+  allowSymlinks = false,
+): Promise<void> {
   const device = (await lstat(root)).dev;
   async function visit(path: string): Promise<void> {
     const info = await lstat(path);
-    if (info.isSymbolicLink()) throw new Error(`资源包含符号链接: ${path}`);
+    if (info.isSymbolicLink()) {
+      if (allowSymlinks) return;
+      throw new Error(`资源包含符号链接: ${path}`);
+    }
     if (info.dev !== device) throw new Error(`资源包含跨设备挂载: ${path}`);
     if (info.isDirectory()) {
       for (const child of await readdir(path)) await visit(join(path, child));
@@ -49,6 +55,29 @@ async function validateTree(root: string): Promise<void> {
   }
   await visit(root);
 }
+// 主项目与额外目录复用同一源边界检查，调用者分别指定需要保护的宿主目录。
+export async function validateSourceDirectory(
+  source: string,
+  protectedRoots: string[],
+  options: { allowSymlinks?: boolean } = {},
+): Promise<string> {
+  const root = await canonicalDirectory(source);
+  const protectedPaths = await Promise.all(
+    protectedRoots.map((path) => realpath(path)),
+  );
+  if (
+    [...reservedSources, ...protectedPaths].some((path) => overlaps(path, root))
+  )
+    throw new Error(`资源源覆盖系统或宿主控制目录: ${root}`);
+  const mounts = (await readFile("/proc/self/mountinfo", "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => mountPath(line.split(" ")[4]!));
+  if (mounts.some((path) => path !== root && inside(root, path)))
+    throw new Error(`资源包含子挂载: ${root}`);
+  await validateTree(root, options.allowSymlinks);
+  return root;
+}
 // 调用者传入宿主状态目录及原项目，禁止授权源覆盖可信控制面。
 export async function validateResources(
   resources: FileResource[],
@@ -57,13 +86,6 @@ export async function validateResources(
   const validated = resources.map((resource) =>
     fileResourceSchema.parse(resource),
   );
-  const protectedPaths = await Promise.all(
-    protectedRoots.map((path) => realpath(path)),
-  );
-  const mounts = (await readFile("/proc/self/mountinfo", "utf8"))
-    .trim()
-    .split("\n")
-    .map((line) => mountPath(line.split(" ")[4]!));
   const names = new Set<string>();
   for (const resource of validated) {
     if (names.has(resource.name))
@@ -78,20 +100,10 @@ export async function validateResources(
       )
     )
       throw new Error(`资源目标重叠: ${resource.target}`);
-    resource.source = await canonicalDirectory(resource.source);
-    if (
-      [...reservedSources, ...protectedPaths].some((path) =>
-        overlaps(path, resource.source),
-      )
-    )
-      throw new Error(`资源源覆盖系统或宿主控制目录: ${resource.source}`);
-    if (
-      mounts.some(
-        (path) => path !== resource.source && inside(resource.source, path),
-      )
-    )
-      throw new Error(`资源包含子挂载: ${resource.source}`);
-    await validateTree(resource.source);
+    resource.source = await validateSourceDirectory(
+      resource.source,
+      protectedRoots,
+    );
   }
   return validated;
 }

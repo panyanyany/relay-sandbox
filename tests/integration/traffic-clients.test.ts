@@ -12,6 +12,7 @@ import { hostPermissionsSchema } from "../../src/permissions/schema.js";
 import { dockerClient } from "../../src/docker/client.js";
 import { createRuntime, removeRuntime } from "../../src/docker/runtime.js";
 import { execute } from "../../src/docker/execute.js";
+import { trafficEventSchema } from "../../src/traffic/events.js";
 import { configSchema } from "../../src/config/schema.js";
 import { ensureDecoyManifest } from "../../src/decoys/manifest.js";
 import {
@@ -61,6 +62,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
       "import ssl,threading,pathlib",
       "class H(BaseHTTPRequestHandler):",
       " def do_POST(self):",
+      "  if self.headers.get_all('X-Relay-Sandbox-Invocation'): self.send_error(400);return",
       "  p=pathlib.Path('/tmp/relay-request-count');p.write_text(str(int(p.read_text())+1) if p.exists() else '1')",
       "  self.rfile.read(int(self.headers.get('Content-Length','0')));self.send_response(503 if self.path=='/fail' else 200);self.send_header('Content-Length','2');self.end_headers();self.wfile.write(b'ok')",
       " def log_message(self,*args): pass",
@@ -126,6 +128,10 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
       await put(
         "/tmp/traffic-client.py",
         await readFile("scripts/traffic-client.py", "utf8"),
+      );
+      await put(
+        "/tmp/traffic_context.py",
+        await readFile("scripts/traffic_context.py", "utf8"),
       );
       await put("/tmp/clients.json", JSON.stringify(catalog));
       await put("/tmp/relay-client-ca.pem", traffic!.caCertificate.toString());
@@ -197,6 +203,21 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
             '"decoyId":"aws-01"',
           ),
         ).toBe(true);
+        const added = (await readFile(traffic!.eventsPath, "utf8"))
+          .slice(beforeEvents.length)
+          .trim()
+          .split("\n")
+          .map((line) => trafficEventSchema.parse(JSON.parse(line)));
+        expect(added.every((event) => event.invocation?.tool === tool)).toBe(
+          true,
+        );
+        expect(
+          new Set(added.map((event) => event.invocation?.invocationId)).size,
+        ).toBe(1);
+        expect(
+          new Set(added.map((event) => event.invocation?.requestId)).size,
+        ).toBe(1);
+        expect(added[0]?.invocation?.source).toBe("client-reported");
         const unknown = await invoke(tool, [
           tool === "curl" ? "--cacert" : "--ca-certificate",
           "/tmp/fixture-ca.pem",

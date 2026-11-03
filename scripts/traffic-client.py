@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 from urllib.parse import urlsplit
+from traffic_context import HEADER, invocation_header
 
 BINARIES = {"curl": "/usr/bin/curl", "wget": "/usr/bin/wget"}
 VERSIONS = {"curl": "7.88.1", "wget": "1.21.3"}
@@ -26,6 +27,8 @@ def arguments_supported(tool, args):
         if arg in SWITCHES[tool]:
             index += 1
         elif arg in VALUES[tool] and index + 1 < len(args):
+            if arg == "--header" and args[index + 1].split(":", 1)[0].strip().lower() == HEADER.lower():
+                return False
             index += 2
         elif arg.startswith(("https://", "http://")):
             parsed = urlsplit(arg)
@@ -106,6 +109,9 @@ def main():
         injected = ["--noproxy", "", "--proxy", config["endpoint"], "--cacert", config["caPath"]]
     else:
         injected = ["--execute=use_proxy=yes", "--execute=http_proxy=" + config["endpoint"], "--execute=https_proxy=" + config["endpoint"], "--ca-certificate=" + config["caPath"]]
+    context = invocation_header(tool, identifier)
+    if context:
+        injected += ["--header", HEADER + ": " + context]
     os.execv(BINARIES[tool], [tool, args[0], *injected, *args[1:]])
 
 

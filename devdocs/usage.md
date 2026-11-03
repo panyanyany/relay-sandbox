@@ -72,6 +72,10 @@ audit:
 
 默认仅启用宿主 AI 审查，默认 `checks: []`。完整复制项目，包括 Git 忽略内容；只按显式排除规则过滤。符号链接保留为链接，不读取外部目标。普通仓库的 `.git` 会复制，但不会作为交付修改应用；worktree、链接 `.git` 和外部 Git 引用须显式排除或改用自包含仓库。
 
+## 选择原项目访问模式
+
+默认使用独立副本。需要立即修改原项目时，在宿主状态目录的 `permissions/<projectId>.yaml` 配置 `project: { mode: direct }` 后创建新任务。此模式不支持非空 `project.exclude`，审核拒绝不撤销已有修改；`apply_task` 只确认事后检查，不回写。权限、返工和报告字段见[项目访问方式](project-access.md)。
+
 ## 委派、审核和应用
 
 ```sh
@@ -187,3 +191,7 @@ docker build -f images/traffic.Dockerfile -t relay-sandbox-traffic:0.1.0 .
 ```
 
 代理基础镜像固定为 mitmproxy 12.3.1 的镜像摘要。开发镜像实测 curl 7.88.1、GNU Wget 1.21.3 和 Python 3.11.2；受控 Python 入口仅支持 urllib.request@3.11.2。更新镜像或工具版本后，须重新验证完整组合，不能直接沿用已验证声明。代理和公共工具安装失败不会关闭真实TLS验证，也不会放宽强制网络隔离；报告留下覆盖缺口。操作者须独立运行 `supervise` 才会定期检测代理退出。恢复使用原授权和诱饵值，创建新的运行目录及证书。
+
+## 查看通信命中的进程线索
+
+已验证的显式审计入口可将最小进程声明与命中关联。升级时须重建观察镜像和 CLI，并创建新的观察环境；完整步骤、字段及不可信声明边界见[调用关联](traffic-correlation.md)。

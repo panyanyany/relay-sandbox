@@ -149,3 +149,29 @@ S13 的先红后绿保留在 `s13-red.log` 和 `s13-orphan-red.log`。S13C 是�
 ## 维护性修复回归（2026-11-02）
 
 MAINT-001、002、004、006、007、008 已修复，MAINT-005 已加入局部证据预算及当前主环境优先。完整检查 69 项通过、43 项显式跳过，相关 Docker 7 个不同用例通过，构建通过。首轮失败与验证范围见[维护性修复](maintenance.md)。本轮不扩展等待游标，不新增 Redis，不重跑真实计费模型。
+
+
+## 项目访问与调用关联维护性回归（2026-11-03）
+
+开发版已提供默认隔离、宿主授权的直接项目挂载，以及显式审计客户端的进程声明关联。使用方式和证据限制分别见[项目访问方式](project-access.md)与[调用关联](traffic-correlation.md)。进程声明不是内核调用栈，直接模式检查不能撤销已经发生的原项目写入。
+
+维护性审查修复 REV-001–REV-005：
+
+- 收集、准备及最终确认直接项目之前先停止任务资源，再遍历校验。FIFO 故障测试确认容器停止，准备失败状态持久化为 `failed`。
+- 代理就绪增加实际本地请求探针，核对内部关联头已被剥离。缺少请求钩子的真实代理被拒绝并清理私密材料；正常 HTTP/TLS 请求及关联回归通过。
+- 恢复与返工共用启动流程。公开 `resumeTask` 与 `runTask` 故障注入验证：可选审计故障保留警告并继续；强制网络失败停止容器。单元测试覆盖状态写入失败和启动、清理同时失败的原因链。
+- 扫描和快照复制使用固定 64 KiB 缓冲区。直接结果采集复用隔离导出的单文件 256 MiB 上限；稀疏超限文件、边界值和读取期间增长均有测试。
+- 更新需求实现状态和副本规则；恢复此前被需求正文覆盖的历史验证记录。历史部分保留其原有证据日期，不算作本轮重跑结果。
+
+本轮执行结果：
+
+| 命令或范围 | 结果 |
+| --- | --- |
+| `pnpm lint && pnpm check && pnpm test` | 退出码 0；83 项通过，49 项按配置跳过 |
+| `RELAY_DOCKER_TEST=1 pnpm exec vitest run tests/integration/project-access.test.ts tests/integration/traffic-readiness.test.ts tests/integration/traffic-proxy.test.ts tests/integration/traffic-clients.test.ts tests/integration/traffic-python.test.ts` | 5 个文件、8 项通过 |
+| `RELAY_DOCKER_TEST=1 pnpm exec vitest run tests/integration/restart-policy.test.ts tests/e2e/policy-traffic.test.ts` | 2 个文件、2 项通过；真实 Docker，开发命令/模型响应为合成夹具 |
+| `pnpm build`、构建后 CLI `--help` | 退出码 0 |
+
+没有调用真实计费模型，也没有执行宿主重启或内存耗尽实验。源码和测试少于 500 行检查通过。项目是 CLI/stdio MCP，没有网站或需重启的常驻服务；新进程加载新构建。
+
+代理就绪探针改为 15 秒总重试期限后，再次运行 lint、类型检查、构建和缺失钩子的真实 Docker 用例，均通过。构建后 CLI 版本输出 `0.1.0`，差异格式检查通过。

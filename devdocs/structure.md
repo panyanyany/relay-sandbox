@@ -25,11 +25,12 @@ relay-sandbox/
 │   ├── traffic-install.py      # 固定公共工具和证书安全安装
 │   ├── traffic-client.py       # curl/wget显式入口与首请求前分类
 │   ├── traffic-python.py       # 明确urllib请求入口及局部信任
+│   ├── traffic_context.py      # 最小进程声明、内部头编码和严格校验
 │   ├── traffic-match.py        # 有界原值/常见编码匹配
 │   ├── traffic-addon.py        # 代理写盘前最小筛选和轮转
 │   ├── check-length.mjs        # 自有源码及测试少于 500 行检查
 │   ├── clean-build.mjs         # 构建前清除旧模块
-│   └── build-assets.mjs        # 复制五项受控Python辅助脚本到构建目录
+│   └── build-assets.mjs        # 复制六项受控Python辅助脚本到构建目录
 ├── src/
 │   ├── cli/main.ts             # CLI 输入和输出
 │   ├── mcp/
@@ -40,12 +41,15 @@ relay-sandbox/
 │   ├── resources/              # 安全路径、独立副本及直接挂载
 │   ├── decoys/                 # 可选假凭据清单与无覆盖安装
 │   ├── traffic/                # 代理、显式客户端、公共文件安装及入口提示
+│   │   └── readiness.ts        # 本地请求验证真实插件剥离内部头
 │   ├── config/                 # 严格 YAML 配置、私有档案及摘要
 │   ├── projects/registry.ts    # 显式宿主项目注册
 │   ├── tasks/                  # 创建、后台派发、开发、收集及交付编排
 │   │   ├── environment*.ts     # 冻结资源、独立观察环境、状态和生命周期
 │   │   ├── environment-diagnostics.ts # 宿主脱敏原因链及诊断写盘失败留证
-│   │   ├── prepare.ts          # 三方合并候选
+│   │   ├── restart.ts          # 恢复与返工共用网络、审计降级及失败收尾
+│   │   ├── direct-project.ts   # 直接项目检查前停止、返工启动与最终核对
+│   │   ├── prepare.ts          # 隔离合并候选或直接项目事后候选
 │   │   ├── candidate.ts        # 最终候选独立检查
 │   │   ├── check-and-repair.ts # 有限检查返工
 │   │   ├── deliver.ts          # 审查结论绑定与应用
@@ -57,6 +61,8 @@ relay-sandbox/
 │   │   ├── recovery.ts         # 失联协调、恢复与到期回收
 │   │   └── supervisor.ts       # 独立监督器循环
 │   ├── workspace/              # 受控文件读取、完整快照、清单和差异
+│   │   ├── stable-file.ts      # 固定缓冲区安全读取、流式摘要与共享采集限制
+│   │   └── access.ts           # 主项目冻结访问模式、挂载及目录身份核验
 │   ├── docker/                 # 运行模板、资源限制、归档、执行及服务
 │   ├── network/                # 宿主地址探测、任务网络规则
 │   ├── agents/
@@ -74,7 +80,9 @@ relay-sandbox/
 │   ├── helpers/               # 真实宿主 CLI 会话与输出捕获
 │   └── fixtures/               # 假凭据协议服务，不调用真实计费 API
 ├── devdocs/                    # 功能说明、需求、方案与验证范围
-│   └── maintenance.md          # 本轮维护修复契约、错误示范及回归验证
+│   ├── maintenance.md          # 维护修复契约、错误示范及回归验证
+│   ├── project-access.md       # 默认隔离、宿主直接挂载与事后检查
+│   └── traffic-correlation.md  # 诱饵命中关联、进程声明及证据边界
 └── references/                 # 可公开外部方案及资料
 ```
 

@@ -41,7 +41,7 @@ test("读取轮转最小事件，坏字段和压缩缺口可见", async () => {
     JSON.stringify({ reason: "size-limit", location: "body" }) + "\n",
   );
   const result = await readTrafficEvidence(home, "task");
-  expect(result.events).toEqual([event]);
+  expect(result.events).toEqual([{ ...event, runtimeId: "main" }]);
   expect(result.eventCount).toBe(1);
   expect(result.gaps).toEqual(
     expect.arrayContaining([

@@ -1,3 +1,4 @@
+import { MAX_EXPORT_FILE_BYTES } from "../workspace/stable-file.js";
 import { PassThrough } from "node:stream";
 import { pack, extract } from "tar-stream";
 import { mkdir, writeFile, symlink, chmod } from "node:fs/promises";
@@ -97,7 +98,7 @@ export async function download(
             ? value
             : Buffer.from(value as Uint8Array);
           size += chunk.length;
-          if (size > 256 * 1024 * 1024)
+          if (size > MAX_EXPORT_FILE_BYTES)
             throw new Error("单文件导出超过 256MiB，请调整配置或拆分文件");
           chunks.push(chunk);
         }

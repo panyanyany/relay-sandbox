@@ -150,6 +150,9 @@ export async function buildPolicySummary(home: string, id: string) {
       : combinedGaps;
   return {
     mode,
+    projectMode:
+      policy?.project?.mode ??
+      (mode === "unavailable" ? "unknown" : "isolated"),
     network: {
       mode: policy ? "default-open" : mode === "legacy" ? "legacy" : "unknown",
       grants: policy?.network.grants.slice(0, 50) ?? [],
@@ -162,7 +165,8 @@ export async function buildPolicySummary(home: string, id: string) {
         access,
       })) ?? [],
     directHostWritesPossible: policy
-      ? policy.resources.some(
+      ? policy.project?.mode === "direct" ||
+        policy.resources.some(
           (resource) =>
             resource.mode === "direct" && resource.access === "read-write",
         )
@@ -179,6 +183,11 @@ export function policySummaryLines(
 ) {
   return [
     `行为策略：${summary.mode === "frozen" ? "使用冻结宿主授权" : summary.mode === "legacy" ? "旧任务保留原有边界" : "授权记录不可用，影响范围未知"}。`,
+    ...(summary.projectMode === "direct"
+      ? [
+          "原项目访问：直接读写挂载，运行期间修改和删除立即生效；检查是事后检查，拒绝不能撤销已有写入，也不自动回滚。",
+        ]
+      : []),
     ...(summary.directHostWritesPossible
       ? [
           "宿主资源：存在直接可写授权，运行期间可能已即时修改宿主资源，不经过交付审核；原项目未应用不等于全部宿主资源未改。",
@@ -199,7 +208,10 @@ export function policySummaryLines(
       .slice(0, 10)
       .map(
         (event) =>
-          `通信记录：${event.decoyId}，${event.host}:${event.port}，${event.location}，${event.encoding}。`,
+          `通信记录：${event.decoyId}，${event.host}:${event.port}，${event.location}，${event.encoding}。` +
+          (event.invocation
+            ? ` 环境 ${event.runtimeId ?? "未知"}；请求 ${event.invocation.requestId}；调用 ${event.invocation.invocationId}；${event.invocation.tool} PID=${event.invocation.pid}，父PID=${event.invocation.parentPid}，进程启动tick=${event.invocation.processStartTicks}（容器内客户端声明，未经内核核验）。`
+            : " 未关联发送进程。"),
       ),
     "通信命中不等同恶意，也不能证明远端已接收；未命中不代表没有外传。运行风险只提醒，交付代码独立审核。",
     ...(summary.traffic.eventCount > 10

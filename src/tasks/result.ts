@@ -25,6 +25,7 @@ export async function taskResult(home: string, id: string) {
   const baseline = await optionalJson<Manifest>(join(root, "baseline.json")),
     result = await optionalJson<Manifest>(join(root, "result.json"));
   const plan = await optionalJson<ApplyPlan>(join(root, "apply-plan.json"));
+  const policy = await buildPolicySummary(home, id);
   return {
     task,
     nextAction: taskNextAction(task),
@@ -32,6 +33,10 @@ export async function taskResult(home: string, id: string) {
     applicationPlan: plan
       ? {
           taskId: plan.taskId,
+          kind:
+            policy.projectMode === "direct"
+              ? "post_write_changes"
+              : "pending_changes",
           artifactDigest: plan.artifactDigest,
           configDigest: plan.configDigest,
           changeCount: plan.changes.length,
@@ -42,10 +47,13 @@ export async function taskResult(home: string, id: string) {
       : null,
     changes: baseline && result ? changes(baseline, result) : [],
     audit: summarizeAudit(await loadAudit(home, id)),
-    policy: await buildPolicySummary(home, id),
+    policy,
     monitoring: await telemetryStatus(home, id),
     reviewSchema: z.toJSONSchema(reviewSchema),
     reviewInstructions:
+      (policy.projectMode === "direct"
+        ? "原项目已直接挂载：修改可能已生效。applicationPlan列出相对基线的事后变化；apply_task只确认检查结果，不回写或回滚。拒绝后仍须上报原项目可能已变更。"
+        : "") +
       "审查最终 candidate 与 applicationPlan；verdict 评价交付代码，运行期审计单独上报，不因审计事件或部分覆盖而拒绝正确代码；应用计划已在本结果中提供，详情用 get_delivery_plan；read_artifact 只读取项目文件。提交 schemaVersion=1、绑定任务及双摘要的结构化审查（verdict、summary、findings），不确定时使用 needs_attention；完成或异常收尾时调用 cleanup_task，然后调用 report_task，并将返回的 reportId、userMessage 原样作为最终用户回复。",
   };
 }

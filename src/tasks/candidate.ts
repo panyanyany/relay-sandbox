@@ -20,6 +20,8 @@ import { dockerClient } from "../docker/client.js";
 import { getTask, saveTask, taskPath } from "./store.js";
 import { withTaskLock } from "./lock.js";
 import type { Task } from "./types.js";
+import { taskProjectMode } from "../workspace/access.js";
+import type { Manifest } from "../workspace/manifest.js";
 // 各收尾独立尝试，保留代理证据；一个失败不能跳过其他运行资源的回收。
 async function finishCheck(
   home: string,
@@ -49,6 +51,11 @@ export async function verifyCandidate(home: string, task: Task) {
     candidate = join(root, "candidate");
   const manifest = await scan(candidate),
     artifact = manifestDigest(manifest);
+  const direct = (await taskProjectMode(home, task)) === "direct";
+  if (direct && manifestDigest(await scan(task.projectRoot)) !== artifact)
+    throw new Error(
+      "直接模式的候选与原项目不同，请在原项目修改后重新收集和检查",
+    );
   if (artifact !== task.artifactDigest) {
     delete task.review;
     task.checks = [];
@@ -60,7 +67,9 @@ export async function verifyCandidate(home: string, task: Task) {
       task.id,
       artifact,
       task.configDigest,
-      await scan(join(root, "current")),
+      direct
+        ? await readJson<Manifest>(join(root, "baseline.json"))
+        : await scan(join(root, "current")),
       manifest,
     ),
   );
