@@ -175,3 +175,24 @@ MAINT-001、002、004、006、007、008 已修复，MAINT-005 已加入局部证
 没有调用真实计费模型，也没有执行宿主重启或内存耗尽实验。源码和测试少于 500 行检查通过。项目是 CLI/stdio MCP，没有网站或需重启的常驻服务；新进程加载新构建。
 
 代理就绪探针改为 15 秒总重试期限后，再次运行 lint、类型检查、构建和缺失钩子的真实 Docker 用例，均通过。构建后 CLI 版本输出 `0.1.0`，差异格式检查通过。
+
+## 项目持久环境验收（2026-11-03）
+
+新任务默认按项目保留开发容器，任务完成后停止并释放；提供 TTL、临时销毁和显式环境管理入口。旧任务没有 `environmentId` 时保留原任务级回收行为。操作、历史状态风险及限制见[持久环境](persistent-environments.md)。
+
+- `pnpm lint && pnpm check && pnpm test && pnpm build` 退出码 0：87 项通过、53 项按配置跳过；包含 4 项新增环境单元测试。源码和测试少于 500 行检查通过。
+- `RELAY_DOCKER_TEST=1 pnpm exec vitest run tests/integration/persistent-environment.test.ts`：4 项真实 Docker 用例通过。覆盖默认容器和用户工具跨任务复用、空闲停止、同项目独占、旧任务清理不影响新任务、同步冲突、授权变化要求重置、取消后恢复、TTL 回收、直接项目挂载、历史诱饵继续匹配和证据脱敏，以及临时模式交付后自动销毁。
+- 补充宿主删除上轮新增文件的断言后，单独重跑该文件的“默认项目环境”用例：1 项通过、3 项按名称筛选跳过。确认成功交付后推进共同基线，不在下一任务复活已删除文件。
+- `RELAY_DOCKER_TEST=1 pnpm exec vitest run tests/integration/project-access.test.ts tests/integration/restart-policy.test.ts tests/integration/policy-lifecycle.test.ts tests/integration/policy-task.test.ts tests/e2e/delivery.test.ts`：5 个文件、15 项通过。既有一次性环境夹具显式选择 ephemeral；覆盖三种真实开发 CLI 的本地假中转站交付与有限返工。
+- 构建后 CLI 和 stdio MCP 冒烟：环境状态、4 个环境管理工具、默认 persistent 能力声明和空环境查询通过。没有网站或常驻应用服务需要重启，新 CLI/MCP 进程使用新构建。
+
+没有调用真实计费模型，没有执行宿主断电、环境备份迁移或磁盘耗尽实验。项目环境不自动跨镜像、授权或目录身份变化迁移；同步失败保留现场并要求显式重置。持久化不保留进程内存，也不保证保留的软件或配置安全。未执行 Git 提交或推送。
+
+## 持久环境维护性修复（PENV-001–PENV-004，2026-11-03）
+
+候选检查改为冻结持久环境实际使用的额外副本资源；直接授权和一次性环境维持原语义。持久审计初始化损坏时保存覆盖缺口，普通开发继续；同任务恢复与检查不重新生成诱饵身份。同步和停止同时失败时保留两个原因，创建失败记录保存脱敏后的完整错误链。
+
+- 新增 5 项单元回归：资源内容与检查副本隔离、运行中的容器拒绝冻结、两种审计文件损坏及恢复不误报、同步与停止双失败、创建错误链与专用凭据脱敏。
+- `RELAY_DOCKER_TEST=1 pnpm exec vitest run tests/integration/persistent-environment.test.ts`：5 项通过。新增真实检查容器读取开发修改后的资源、检查写入不影响下一任务、宿主资源源未改变的验证；原有 4 项持久环境用例继续通过。
+- `pnpm lint && pnpm check && pnpm test && pnpm build` 退出码 0：92 项通过，54 项按配置跳过；文件少于 500 行检查通过。构建后 CLI 帮助冒烟通过。
+- 本项目为 CLI/stdio MCP，没有网站或常驻应用服务需要重启；后续进程使用新构建。真实 Docker 测试资源已清理。未调用真实计费模型，未执行 Git 提交或推送。

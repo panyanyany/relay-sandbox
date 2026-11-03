@@ -44,12 +44,21 @@ relay-sandbox/
 │   │   └── readiness.ts        # 本地请求验证真实插件剥离内部头
 │   ├── config/                 # 严格 YAML 配置、私有档案及摘要
 │   ├── projects/registry.ts    # 显式宿主项目注册
+│   ├── environments/           # 独立于任务的项目持久环境
+│   │   ├── store.ts            # 环境记录及项目排他锁
+│   │   ├── acquire.ts          # 边界核验、借用和复用
+│   │   ├── workspace.ts        # 跨任务三方同步及基线
+│   │   ├── ownership.ts        # 当前借用者校验、恢复和释放
+│   │   ├── audit.ts            # 环境诱饵身份与历史安装位置
+│   │   ├── idle.ts             # 交付后停止保留或临时销毁
+│   │   └── lifecycle.ts        # 停止、重置、删除及TTL候选
 │   ├── tasks/                  # 创建、后台派发、开发、收集及交付编排
 │   │   ├── environment*.ts     # 冻结资源、独立观察环境、状态和生命周期
 │   │   ├── environment-diagnostics.ts # 宿主脱敏原因链及诊断写盘失败留证
 │   │   ├── restart.ts          # 恢复与返工共用网络、审计降级及失败收尾
 │   │   ├── direct-project.ts   # 直接项目检查前停止、返工启动与最终核对
 │   │   ├── prepare.ts          # 隔离合并候选或直接项目事后候选
+│   │   ├── check-resources.ts  # 持久环境实际资源冻结与独立检查副本
 │   │   ├── candidate.ts        # 最终候选独立检查
 │   │   ├── check-and-repair.ts # 有限检查返工
 │   │   ├── deliver.ts          # 审查结论绑定与应用
@@ -80,6 +89,7 @@ relay-sandbox/
 │   ├── helpers/               # 真实宿主 CLI 会话与输出捕获
 │   └── fixtures/               # 假凭据协议服务，不调用真实计费 API
 ├── devdocs/                    # 功能说明、需求、方案与验证范围
+│   ├── persistent-environments.md # 默认保留、同步及环境生命周期
 │   ├── maintenance.md          # 维护修复契约、错误示范及回归验证
 │   ├── project-access.md       # 默认隔离、宿主直接挂载与事后检查
 │   └── traffic-correlation.md  # 诱饵命中关联、进程声明及证据边界

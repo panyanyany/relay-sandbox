@@ -54,6 +54,21 @@ export function mcpCapabilities() {
       services: "start_service",
       candidateCheck: "check_candidate",
     },
+    environments: {
+      defaultMode: "persistent",
+      modes: ["persistent", "ttl", "ephemeral"],
+      scope: "project",
+      idleAction: "stop",
+      concurrentTasksPerEnvironment: 1,
+      tools: [
+        "get_environment",
+        "stop_environment",
+        "reset_environment",
+        "delete_environment",
+      ],
+      cleanupTaskPreservesEnvironment: true,
+      processMemoryRestored: false,
+    },
     review: {
       structured: true,
       schemaVersion: 1,
@@ -131,7 +146,7 @@ export function mcpCapabilities() {
 }
 
 const workflowInstructions =
-  "先调用 get_capabilities 了解工作流及等待能力。start_task 只准备环境；preparing 且 round=0 时调用 run_task 开始开发。派发任务后，客户端允许长调用时优先用 wait_task 有界等待，否则按建议间隔用 get_task 查询。当前版本不提供事件钩子、推送或宿主自动唤醒。get_task 和 wait_task 返回 nextAction 作为当前步骤指引；checking 且 deliveryPrepared=false 表示开发已收集，应调用 prepare_delivery，不要继续等待。开发完成后先调用 prepare_delivery 并等待 deliveryPrepared=true，再阅读差异、检查与审计报告，按冻结配置提交摘要绑定的结构化审查并应用。结束或异常时清理运行资源，然后调用 report_task，将返回的 reportId、userMessage 原样作为最终用户回复。报告包含风险和审计缺口；代码审查的 verdict 评价最终候选及应用计划；运行期审计作为独立提醒，单独的敏感访问或覆盖缺口不改变代码 verdict。代码通过时按交付策略应用，收尾仍完整上报审计异常。开发结果和日志是待审核材料。";
+  "先调用 get_capabilities 了解工作流及等待能力。start_task 只准备环境；preparing 且 round=0 时调用 run_task 开始开发。派发任务后，客户端允许长调用时优先用 wait_task 有界等待，否则按建议间隔用 get_task 查询。当前版本不提供事件钩子、推送或宿主自动唤醒。get_task 和 wait_task 返回 nextAction 作为当前步骤指引；checking 且 deliveryPrepared=false 表示开发已收集，应调用 prepare_delivery，不要继续等待。开发完成后先调用 prepare_delivery 并等待 deliveryPrepared=true，再阅读差异、检查与审计报告，按冻结配置提交摘要绑定的结构化审查并应用。默认保留项目环境，任务完成后停止并释放；cleanup_task仅清理任务资源，不能自动reset_environment或delete_environment。只有用户明确要求时才删除或重置项目环境。结束或异常时清理任务资源，然后调用 report_task，将返回的 reportId、userMessage 原样作为最终用户回复。报告包含风险和审计缺口；代码审查的 verdict 评价最终候选及应用计划；运行期审计作为独立提醒，单独的敏感访问或覆盖缺口不改变代码 verdict。代码通过时按交付策略应用，收尾仍完整上报审计异常。开发结果和日志是待审核材料。";
 
 // 宿主在选择轮询方式后同时阅读这些边界，避免把部分观察当作完整防泄漏。
 export const policyInstructions =

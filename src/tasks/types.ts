@@ -29,6 +29,8 @@ export interface Task {
   // 宿主冻结模式的诊断副本；旧任务省略时仍按隔离处理。
   projectMode?: "isolated" | "direct";
   projectIdentity?: string;
+  // 稳定环境独立于任务；省略时保留旧版按任务回收的语义。
+  environmentId?: string;
   prompt: string;
   config: Config;
   configDigest: string;

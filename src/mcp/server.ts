@@ -1,3 +1,8 @@
+import { readEnvironment } from "../environments/store.js";
+import {
+  deleteEnvironment,
+  stopProjectEnvironment,
+} from "../environments/lifecycle.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -44,6 +49,41 @@ export async function serveMcp(home: string): Promise<void> {
       };
     }
   };
+  // 环境删除与任务清理分开；宿主只在用户明确要求时调用重置或删除。
+  for (const [name, description, operation] of [
+    [
+      "get_environment",
+      "查看项目持久环境、活动任务及空闲时间。",
+      readEnvironment,
+    ],
+    [
+      "stop_environment",
+      "停止空闲项目环境并保留文件；活动任务须先cancel_task。",
+      stopProjectEnvironment,
+    ],
+    [
+      "reset_environment",
+      "仅用户明确要求时重置空闲项目环境；删除后下一任务从基础镜像重建。活动任务须先cleanup_task。",
+      deleteEnvironment,
+    ],
+    [
+      "delete_environment",
+      "仅用户明确要求时删除项目持久环境及内部文件；不删除原项目或任务报告。",
+      deleteEnvironment,
+    ],
+  ] as const)
+    server.registerTool(
+      name,
+      { description, inputSchema: { project: z.string() } },
+      async ({ project }) =>
+        text(
+          async () =>
+            (await operation(home, project)) ?? {
+              projectId: project,
+              status: "absent",
+            },
+        ),
+    );
   server.registerTool(
     "get_capabilities",
     {
@@ -209,7 +249,7 @@ export async function serveMcp(home: string): Promise<void> {
     "cleanup_task",
     {
       description:
-        "清理任务运行资源，保留配置规定的报告及备份；完成后调用 report_task 向用户说明。",
+        "清理任务运行资源，默认停止并保留项目环境以供下次任务复用，保留配置规定的报告及备份；完成后调用 report_task 向用户说明。",
       inputSchema: { id: z.string() },
     },
     async ({ id }) => text(() => cleanupTask(home, id)),

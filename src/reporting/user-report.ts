@@ -1,3 +1,4 @@
+import { readEnvironment } from "../environments/store.js";
 import { buildPolicySummary, policySummaryLines } from "./policy-summary.js";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
@@ -19,6 +20,9 @@ export async function buildUserReport(home: string, id: string) {
   const task = await getTask(home, id),
     audit = await loadAudit(home, id);
   const monitoring = await telemetryStatus(home, id);
+  const retained = task.environmentId
+    ? await readEnvironment(home, task.projectId)
+    : undefined;
   const policy = await buildPolicySummary(home, id);
   const direct =
     policy.projectMode === "direct" || task.projectMode === "direct";
@@ -70,6 +74,19 @@ export async function buildUserReport(home: string, id: string) {
       !task.config.delivery.aiReview && !task.config.delivery.checks.length,
     checks: task.checks,
     warnings: task.warnings,
+    environment: task.environmentId
+      ? {
+          id: task.environmentId,
+          retention: task.config.environment?.mode ?? "persistent",
+          status:
+            retained?.id !== task.environmentId
+              ? "deleted_or_replaced"
+              : retained.activeTaskId
+                ? "in_use"
+                : "idle",
+          inheritedState: true,
+        }
+      : null,
     cleanupStatus: task.state === "cleaned" ? "cleaned" : "pending",
     taskState: task.state,
     error: task.error ?? null,
@@ -139,6 +156,11 @@ export async function buildUserReport(home: string, id: string) {
     ...(facts.checksDisabled ? ["未执行交付检查。"] : []),
     ...task.warnings.map((w) => `提醒：${w}`),
     ...(task.error ? [`错误：${task.error}`] : []),
+    ...(facts.environment
+      ? [
+          `项目环境：${facts.environment.status === "idle" ? "已停止并保留，下次复用" : facts.environment.status === "in_use" ? "已保留，仍由任务占用" : "已删除或重置"}；历史软件与配置可能保留，可显式重置。`,
+        ]
+      : []),
     `清理：${facts.cleanupStatus === "cleaned" ? "已清理运行资源" : "尚未完成"}；宿主保留报告和备份。`,
   ];
   const safe = JSON.parse(
@@ -197,6 +219,7 @@ export async function prepareUserReport(home: string, id: string) {
       deliveryKind: report.deliveryKind,
       originalProjectChangedByTask: report.originalProjectChangedByTask,
       cleanupStatus: report.cleanupStatus,
+      environment: report.environment,
       emissionStatus: "prepared",
       finalOutputSchema: z.toJSONSchema(userEmissionSchema),
       nextAction:

@@ -1,3 +1,7 @@
+import {
+  expiredEnvironments,
+  deleteEnvironment,
+} from "../environments/lifecycle.js";
 import { readdir, unlink, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { getTask, listTasks, saveTask, taskPath } from "./store.js";
@@ -62,14 +66,25 @@ export async function garbageCollectionPlan(home: string, now = Date.now()) {
         reason: "reports_expired",
       });
   }
-  return plan;
+  return [
+    ...plan,
+    ...(await expiredEnvironments(home, now)).map((projectId) => ({
+      projectId,
+      action: "delete_environment" as const,
+      reason: "environment_idle_expired",
+    })),
+  ];
 }
 
 // 正常收尾保留证据，到期再删除日志和用户报告；代码备份及任务元数据始终保留。
 export async function collectGarbage(home: string, now = Date.now()) {
   const actions: string[] = [];
   for (const item of await garbageCollectionPlan(home, now)) {
-    if (item.action === "cleanup_resources") {
+    if (item.action === "delete_environment") {
+      const result = await deleteEnvironment(home, item.projectId, now);
+      if (result.status === "deleted")
+        actions.push(`environment-deleted:${item.projectId}`);
+    } else if (item.action === "cleanup_resources") {
       await cleanupTask(home, item.taskId);
       actions.push(`cleaned:${item.taskId}`);
     } else if (item.action === "purge_reports") {

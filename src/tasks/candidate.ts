@@ -1,7 +1,7 @@
 import type Docker from "dockerode";
 import { readFrozenPolicy } from "../permissions/freeze.js";
 import { stopEnvironment } from "./environment-lifecycle.js";
-import { prepareEnvironment } from "./environment.js";
+import { prepareCheckResources } from "./check-resources.js";
 import { installEnvironment } from "./environment-install.js";
 import { type EnvironmentState } from "./environment-state.js";
 import type { RuntimeHandle } from "../docker/runtime.js";
@@ -80,7 +80,7 @@ export async function verifyCandidate(home: string, task: Task) {
     );
     // 新建检查容器，避免开发 Agent 遗留进程干预测试；绝不修改正常返工的工作区。
     const policy = await readFrozenPolicy(home, task.id);
-    const options = await prepareEnvironment(home, task, policy, true);
+    const options = await prepareCheckResources(home, task, policy);
     const runtimeId = `${task.id}-check-${randomUUID().slice(0, 8)}`;
     const docker = dockerClient(),
       runtime = await createRuntime(

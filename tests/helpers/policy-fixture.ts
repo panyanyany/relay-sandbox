@@ -1,3 +1,5 @@
+import { configureEphemeralProject } from "./ephemeral-task.js";
+import { deleteEnvironment } from "../../src/environments/lifecycle.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -11,7 +13,7 @@ import { dockerClient } from "../../src/docker/client.js";
 import type { Task } from "../../src/tasks/types.js";
 
 // 使用实际CLI登记项目，实际stdio MCP创建/查询/清理，不连接真实模型接口。
-export async function policyFixture() {
+export async function policyFixture(options: { persistent?: boolean } = {}) {
   const directory = await mkdtemp(join(tmpdir(), "relay-policy-flow-"));
   const home = join(directory, "state"),
     project = join(directory, "project");
@@ -106,6 +108,7 @@ export async function policyFixture() {
       await writeFile(join(home, "permissions/project.yaml"), stringify(value));
     },
     async create() {
+      if (!options.persistent) await configureEphemeralProject(project);
       return tool<Task>("start_task", {
         project: "project",
         prompt: "合成行为策略验收，无需运行开发模型",
@@ -115,6 +118,7 @@ export async function policyFixture() {
       try {
         for (const task of (await cli("status")) as Task[])
           await tool("cleanup_task", { id: task.id });
+        await deleteEnvironment(home, "project");
       } finally {
         await client.close();
         await rm(directory, { recursive: true, force: true });

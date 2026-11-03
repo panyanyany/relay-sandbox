@@ -1,3 +1,4 @@
+import { idleEnvironment } from "../environments/idle.js";
 import { withTaskLock } from "./lock.js";
 import { join } from "node:path";
 import { getTask, saveTask, taskPath } from "./store.js";
@@ -59,7 +60,6 @@ async function applyTaskLocked(home: string, id: string) {
     if (!task.config.delivery.aiReview && !task.config.delivery.checks.length)
       task.warnings.push("未执行交付检查");
     await saveTask(home, task);
-    return task;
   } catch (error) {
     task.state = "failed";
     task.applicationStatus = "failed";
@@ -67,6 +67,16 @@ async function applyTaskLocked(home: string, id: string) {
     await saveTask(home, task);
     throw error;
   }
+  try {
+    await idleEnvironment(home, task);
+  } catch (error) {
+    task.warnings.push(
+      "交付已完成，但环境收尾失败，请检查并重试cleanup；不能据此认为所有进程已停止",
+    );
+    await saveTask(home, task);
+    throw error;
+  }
+  return task;
 }
 
 // 宿主并发入口共享任务互斥边界。

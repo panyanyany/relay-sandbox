@@ -1,3 +1,5 @@
+import { ownsRuntime, releaseEnvironment } from "../environments/ownership.js";
+import { rememberPersistentAudit } from "../environments/audit.js";
 import { stopMonitor } from "../monitoring/monitor.js";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -15,8 +17,11 @@ import type { Task } from "./types.js";
 async function taskContainers(
   task: Task,
   errors: unknown[],
+  includeMain = true,
 ): Promise<string[]> {
-  const ids = new Set<string>(task.containerId ? [task.containerId] : []);
+  const ids = new Set<string>(
+    includeMain && task.containerId ? [task.containerId] : [],
+  );
   try {
     for (const item of await dockerClient().listContainers({
       all: true,
@@ -62,7 +67,11 @@ export async function stopTaskResources(
 ): Promise<void> {
   const errors: unknown[] = [];
   await attempt(() => stopEnvironments(dockerClient(), home, task.id), errors);
-  for (const id of await taskContainers(task, errors))
+  for (const id of await taskContainers(
+    task,
+    errors,
+    await ownsRuntime(home, task),
+  ))
     await attempt(() => stopRuntime(dockerClient(), id), errors);
   if (errors.length)
     throw new AggregateError(errors, "任务部分运行资源未确认停止");
@@ -82,6 +91,10 @@ export async function stopTask(home: string, id: string) {
       "停止未完全成功，不能确认整个任务已停止",
     );
   }
+  if (task.environmentId && (await ownsRuntime(home, task))) {
+    await rememberPersistentAudit(home, task);
+    await releaseEnvironment(home, task);
+  }
   if (task.state !== "completed") task.state = "stopped";
   await saveTask(home, task);
   return task;
@@ -94,13 +107,23 @@ export async function cleanupTask(home: string, id: string) {
   const docker = dockerClient(),
     errors: unknown[] = [];
   await attempt(() => stopMonitor(home, id), errors);
+  if (task.environmentId && (await ownsRuntime(home, task))) {
+    await attempt(() => stopTaskResources(home, task), errors);
+    await attempt(() => rememberPersistentAudit(home, task), errors);
+  }
   await attempt(() => stopEnvironments(docker, home, id), errors);
-  for (const containerId of await taskContainers(task, errors))
+  for (const containerId of await taskContainers(
+    task,
+    errors,
+    !task.environmentId,
+  ))
     await attempt(
       () => docker.getContainer(containerId).remove({ force: true, v: true }),
       errors,
     );
-  const networks = new Set<string>(task.networkId ? [task.networkId] : []);
+  const networks = new Set<string>(
+    !task.environmentId && task.networkId ? [task.networkId] : [],
+  );
   try {
     for (const network of await docker.listNetworks({
       filters: { label: [`relay-sandbox.task=${id}`] },
@@ -126,7 +149,11 @@ export async function cleanupTask(home: string, id: string) {
       "current",
       "candidate",
       "resources",
+      "check-resources",
       "decoys",
+      "host-baseline",
+      "environment-current",
+      "delivery-sync",
     ])
       await attempt(
         () =>
@@ -140,6 +167,7 @@ export async function cleanupTask(home: string, id: string) {
       new AggregateError(errors, "任务副本或私密材料清理不完整"),
       "文件清理未完全成功，可重试",
     );
+  await releaseEnvironment(home, task);
   task.state = "cleaned";
   task.cleanedAt = new Date().toISOString();
   await saveTask(home, task);

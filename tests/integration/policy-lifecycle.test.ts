@@ -14,7 +14,7 @@ import { stringify } from "yaml";
 import { dockerClient } from "../../src/docker/client.js";
 import { execute } from "../../src/docker/execute.js";
 import { registerProject } from "../../src/projects/registry.js";
-import { createTask } from "../../src/tasks/create.js";
+import { createEphemeralTask as createTask } from "../helpers/ephemeral-task.js";
 import { cleanupTask, stopTask } from "../../src/tasks/cleanup.js";
 import { resumeTask, superviseOnce } from "../../src/tasks/recovery.js";
 import { collectGarbage } from "../../src/tasks/garbage-collection.js";

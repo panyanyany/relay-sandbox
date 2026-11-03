@@ -15,6 +15,7 @@ export async function restartTaskRuntime(
   task: Task,
   profile: Profile,
   reason: "resume" | "rework",
+  observe = true,
 ) {
   const docker = dockerClient();
   const policy = await readFrozenPolicy(home, task.id);
@@ -30,7 +31,7 @@ export async function restartTaskRuntime(
         ? { mode: "default-open", grants: policy.network.grants }
         : undefined,
     );
-    if (policy) {
+    if (policy && observe) {
       try {
         await installEnvironment(docker, {
           home,

@@ -1,3 +1,4 @@
+import { claimEnvironment, ownsRuntime } from "../environments/ownership.js";
 import { readFrozenPolicy } from "../permissions/freeze.js";
 import { formatError } from "../audit/redaction.js";
 import { stopTaskResources } from "./cleanup.js";
@@ -23,6 +24,7 @@ export async function superviseOnce(
   const actions: string[] = [];
   const failures: unknown[] = [];
   for (const task of await listTasks(home)) {
+    if (task.environmentId && !(await ownsRuntime(home, task))) continue;
     const lock = join(taskPath(home, task.id), "operation.lock");
     let lease: OperationLease | undefined;
     try {
@@ -133,6 +135,7 @@ export async function resumeTask(home: string, id: string) {
     const profile = profileSchema.parse(
       await readJson(join(taskPath(home, id), "profile.json")),
     );
+    await claimEnvironment(home, task);
     const docker = dockerClient();
     try {
       // 先回收旧代理和旧进程，恢复只保留文件；不从最新宿主配置扩大授权。

@@ -62,7 +62,7 @@ node dist/src/cli/main.js --home <状态目录> gc --dry-run
 node dist/src/cli/main.js --home <状态目录> gc
 ```
 
-预览列出本状态目录中的到期资源、报告及指标文件。回收时跳过仍有存活操作进程的任务。等待用户处理、被审核阻止及就绪候选不自动按结束时间销毁，需要显式收尾。结束、失败和停止任务在 `finishedRetentionHours` 到期后清理；中断任务按 `expiresAt` 清理。已清理任务的审计、轮次/后台日志和用户报告按 `audit.reportRetentionDays` 删除。指标按 `logging.retentionDays` 删除，采集器运行时也清除过期指标。
+预览列出本状态目录中的到期任务资源、报告、指标文件和 TTL 项目环境。默认持久环境不按任务保留期限删除，任务资源清理会停止并释放环境；只有 TTL 到期或显式环境删除才回收其开发容器和网络。详见[持久环境](persistent-environments.md)。回收时跳过仍有存活操作进程的任务。等待用户处理、被审核阻止及就绪候选不自动按结束时间销毁，需要显式收尾。结束、失败和停止任务在 `finishedRetentionHours` 到期后清理；中断任务按 `expiresAt` 清理。已清理任务的审计、轮次/后台日志和用户报告按 `audit.reportRetentionDays` 删除。指标按 `logging.retentionDays` 删除，采集器运行时也清除过期指标。
 
 代码备份、任务元数据和清单不会自动删除，便于处理部分应用和后续用户修改。构建镜像不会随任务清理，也不运行全局 Docker prune。磁盘硬配额、宿主断电恢复及所有资源超限场景仍需后续专项验收。
 

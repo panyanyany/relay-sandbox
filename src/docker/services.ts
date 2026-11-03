@@ -1,3 +1,4 @@
+import { requireRuntimeOwner } from "../environments/ownership.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse } from "yaml";
@@ -19,6 +20,7 @@ export async function startService(
   task: Task,
   profile: string,
 ): Promise<string> {
+  await requireRuntimeOwner(home, task);
   if (!/^[\w-]+$/.test(profile)) throw new Error("服务档案标识非法");
   if (
     !task.containerId ||

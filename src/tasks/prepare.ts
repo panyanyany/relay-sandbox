@@ -1,3 +1,4 @@
+import { requireRuntimeOwner } from "../environments/ownership.js";
 import { formatError } from "../audit/redaction.js";
 import { withTaskLock } from "./lock.js";
 import { join } from "node:path";
@@ -11,6 +12,7 @@ import { prepareDirectProject } from "./direct-project.js";
 // 合并、检查、应用由任务层顺序编排，不让三个模块彼此递归调用。
 async function prepareDeliveryLocked(home: string, id: string) {
   const task = await getTask(home, id);
+  await requireRuntimeOwner(home, task);
   if (!task.artifactDigest || !task.containerId)
     throw new Error("尚未收集开发结果");
   if (["running", "applying", "completed", "cleaned"].includes(task.state))

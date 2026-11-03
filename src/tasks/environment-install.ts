@@ -13,6 +13,7 @@ import { installTrafficFiles } from "../traffic/install.js";
 import { prepareClientCatalog } from "../traffic/clients.js";
 import { taskPath } from "./store.js";
 import {
+  loadMainEnvironment,
   environmentDirectory,
   listEnvironments,
   saveEnvironmentState,
@@ -58,6 +59,19 @@ export async function installEnvironment(
     await saveEnvironmentState(home, taskId, state, summary.role === "main");
     return state;
   };
+  // 持久清单准备失败后，恢复和候选检查也不能另造身份冒充历史覆盖。
+  let main;
+  try {
+    main = await loadMainEnvironment(home, taskId);
+  } catch (error) {
+    await diagnose("decoy-history-unavailable", error);
+    summary.gaps.push("decoy-history-unavailable");
+    return finish();
+  }
+  if (main?.summary.gaps.includes("persistent-audit-unavailable")) {
+    summary.gaps.push("persistent-audit-unavailable");
+    return finish();
+  }
   const decoys = join(taskPath(home, taskId), "decoys");
   let manifest;
   try {

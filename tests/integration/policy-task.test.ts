@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { expect, test } from "vitest";
 import { stringify } from "yaml";
 import { registerProject } from "../../src/projects/registry.js";
-import { createTask } from "../../src/tasks/create.js";
+import { createEphemeralTask as createTask } from "../helpers/ephemeral-task.js";
 import { collectTask } from "../../src/tasks/run.js";
 import { prepareDelivery } from "../../src/tasks/prepare.js";
 import { cleanupTask } from "../../src/tasks/cleanup.js";

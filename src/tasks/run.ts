@@ -1,3 +1,4 @@
+import { requireRuntimeOwner } from "../environments/ownership.js";
 import { withTaskLock } from "./lock.js";
 import { trafficGuidance } from "../traffic/guidance.js";
 import { join } from "node:path";
@@ -20,10 +21,12 @@ import { taskProjectMode, validateDirectRuntime } from "../workspace/access.js";
 import { MAX_EXPORT_FILE_BYTES } from "../workspace/stable-file.js";
 import { snapshot } from "../workspace/snapshot.js";
 import { stopTaskResources } from "./cleanup.js";
+import { restartTaskRuntime } from "./restart.js";
 import { startDirectProject } from "./direct-project.js";
 // 重新收集时销毁旧的宿主结果目录，不复用可能含链接的旧导出目标。
 export async function collectTask(home: string, task: Task): Promise<Task> {
   if (!task.containerId) throw new Error("任务没有容器");
+  await requireRuntimeOwner(home, task);
   const current = await getTask(home, task.id);
   if (["stopped", "interrupted", "cleaned"].includes(current.state))
     throw new Error("任务已停止，不再收集");
@@ -44,7 +47,10 @@ export async function collectTask(home: string, task: Task): Promise<Task> {
       await saveTask(home, task);
       throw error;
     }
-  } else await download(dockerClient(), task.containerId, result);
+  } else {
+    if (task.environmentId) await stopTaskResources(home, task);
+    await download(dockerClient(), task.containerId, result);
+  }
   const manifest = await scan(result);
   task.artifactDigest = manifestDigest(manifest);
   delete task.review;
@@ -67,6 +73,7 @@ async function runTaskLocked(
   prompt?: string,
 ): Promise<Task> {
   const task = await getTask(home, id);
+  await requireRuntimeOwner(home, task);
   const containerId = task.containerId;
   if (!containerId) throw new Error("任务没有运行环境");
   if (
@@ -87,6 +94,11 @@ async function runTaskLocked(
   if (!key) throw new Error("专用中转站凭据不可用");
   if ((await taskProjectMode(home, task)) === "direct")
     await startDirectProject(home, task, profile);
+  else if (
+    task.environmentId &&
+    !(await dockerClient().getContainer(containerId).inspect()).State.Running
+  )
+    await restartTaskRuntime(home, task, profile, "rework");
   // 保留本轮用户需求，附加可选入口说明，不改任务原始prompt记录。
   const guidance = await trafficGuidance(home, id);
   const effectivePrompt = `${prompt ?? task.prompt}\n\n${guidance}`;
@@ -159,6 +171,17 @@ export async function runTask(home: string, id: string, prompt?: string) {
       if (
         !["stopped", "interrupted", "cleaned", "completed"].includes(task.state)
       ) {
+        if (task.environmentId) {
+          try {
+            await stopTaskResources(home, task);
+          } catch (cleanup) {
+            error = new AggregateError(
+              [error, cleanup],
+              "开发失败且无法确认环境停止",
+              { cause: error },
+            );
+          }
+        }
         task.state = "failed";
         task.error = formatError(error);
         await saveTask(home, task);

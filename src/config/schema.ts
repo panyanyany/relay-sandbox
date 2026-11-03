@@ -50,6 +50,13 @@ export const configSchema = z
       })
       .strict()
       .default({ aiReview: true, checks: [], maxRepairRounds: 2 }),
+    environment: z
+      .object({
+        mode: z.enum(["persistent", "ttl", "ephemeral"]).default("persistent"),
+        idleRetentionHours: z.number().positive().default(24),
+      })
+      .strict()
+      .default({ mode: "persistent", idleRetentionHours: 24 }),
     lifecycle: z
       .object({
         taskTimeoutMinutes: z.number().positive().default(120),

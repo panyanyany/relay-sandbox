@@ -1,3 +1,4 @@
+import { ownsRuntime } from "../environments/ownership.js";
 import { readFile, writeFile, unlink, open } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -55,7 +56,7 @@ export async function monitorTask(home: string, id: string) {
     do {
       const task = await getTask(home, id),
         directory = join(root, "telemetry");
-      if (task.state === "cleaned") break;
+      if (task.state === "cleaned" || !(await ownsRuntime(home, task))) break;
       const policy = task.config.logging;
       await pruneTelemetry(directory, policy.retentionDays);
       try {

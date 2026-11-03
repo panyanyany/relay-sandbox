@@ -1,3 +1,4 @@
+import { requireRuntimeOwner } from "../environments/ownership.js";
 import { join } from "node:path";
 import { cp } from "node:fs/promises";
 import { validateDirectRuntime } from "../workspace/access.js";
@@ -52,6 +53,7 @@ export async function startDirectProject(
   task: Task,
   profile: Profile,
 ) {
+  await requireRuntimeOwner(home, task);
   const docker = dockerClient();
   await validateDirectRuntime(home, task, docker);
   const container = docker.getContainer(task.containerId!);

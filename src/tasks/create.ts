@@ -1,3 +1,6 @@
+import { formatError } from "../audit/redaction.js";
+import { acquireEnvironment } from "../environments/acquire.js";
+import { stopTaskResources } from "./cleanup.js";
 import { freezeEnvironment, prepareEnvironment } from "./environment.js";
 import { installEnvironment } from "./environment-install.js";
 import { startMonitor } from "../monitoring/monitor.js";
@@ -77,36 +80,61 @@ export async function createTask(
     await writeJson(join(taskPath(home, id), "baseline.json"), baseline);
     const options = await prepareEnvironment(home, task, policy, false);
     options.mounts = [...(options.mounts ?? []), ...(mounts ?? [])];
-    const handle = await createRuntime(
-      dockerClient(),
-      id,
-      profile.image,
-      profile.networkImage,
-      config,
-      id,
-      options,
-    );
-    Object.assign(task, handle);
-    await saveTask(home, task);
-    if (task.projectMode !== "direct")
-      await upload(
-        dockerClient(),
-        handle.containerId,
-        join(taskPath(home, id), "baseline"),
+    let auditReady = true;
+    if (config.environment.mode !== "ephemeral") {
+      auditReady = await acquireEnvironment(
+        home,
+        task,
+        profile,
+        policy,
+        options,
       );
-    await installEnvironment(dockerClient(), {
-      home,
-      taskId: id,
-      runtimeId: id,
-      containerId: handle.containerId,
-      policy,
-      role: "main",
-    });
+    } else {
+      const handle = await createRuntime(
+        dockerClient(),
+        id,
+        profile.image,
+        profile.networkImage,
+        config,
+        id,
+        options,
+      );
+      Object.assign(task, handle);
+      await saveTask(home, task);
+      if (task.projectMode !== "direct")
+        await upload(
+          dockerClient(),
+          handle.containerId,
+          join(taskPath(home, id), "baseline"),
+        );
+    }
+    if (auditReady)
+      await installEnvironment(dockerClient(), {
+        home,
+        taskId: id,
+        runtimeId: id,
+        containerId: task.containerId!,
+        policy,
+        role: "main",
+      });
+    await saveTask(home, task);
     await startMonitor(home, id);
     return task;
   } catch (error) {
+    if (task.environmentId) {
+      try {
+        await stopTaskResources(home, task);
+      } catch (cleanup) {
+        error = new AggregateError(
+          [error, cleanup],
+          "环境准备失败且无法确认停止",
+          { cause: error },
+        );
+      }
+    }
     task.state = "failed";
-    task.error = error instanceof Error ? error.message : String(error);
+    // 保留准备与收尾的完整脱敏原因链，不能只存 AggregateError 的标题。
+    task.error = formatError(error, [process.env[profile.apiKeyEnv] ?? ""]);
     await saveTask(home, task);
     throw error;
   }

@@ -53,6 +53,7 @@ export async function prepareEnvironment(
   task: { id: string; projectRoot: string },
   policy: FrozenPolicy | undefined,
   reuse: boolean,
+  resourceRoot?: string,
 ): Promise<RuntimeOptions> {
   const root = taskPath(home, task.id);
   if (policy === undefined) return {};
@@ -62,10 +63,11 @@ export async function prepareEnvironment(
   void schemaVersion;
   const checked = hostPermissionsSchema.parse(body);
   const prepare = reuse ? loadPreparedResources : prepareResources;
-  const resources = await prepare(checked.resources, join(root, "resources"), [
-    home,
-    task.projectRoot,
-  ]);
+  const resources = await prepare(
+    checked.resources,
+    resourceRoot ?? join(root, "resources"),
+    [home, task.projectRoot],
+  );
   return {
     mounts: resources.mounts,
     network: { mode: "default-open", grants: checked.network.grants },

@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+import { readEnvironment } from "../environments/store.js";
+import {
+  deleteEnvironment,
+  stopProjectEnvironment,
+} from "../environments/lifecycle.js";
 import { Command } from "commander";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -65,6 +70,32 @@ program
       ),
     );
   });
+// 显式环境管理入口；重置删除旧环境，下次任务再按当前配置建立。
+for (const [name, description, operation] of [
+  ["environment-status", "查看项目环境状态", readEnvironment],
+  ["environment-stop", "停止空闲环境并保留文件", stopProjectEnvironment],
+  [
+    "environment-reset",
+    "删除空闲环境，下次任务从基础镜像重建",
+    deleteEnvironment,
+  ],
+  [
+    "environment-delete",
+    "删除空闲项目环境，不删除原项目和任务报告",
+    deleteEnvironment,
+  ],
+] as const)
+  program
+    .command(`${name} <project>`)
+    .description(description)
+    .action(async (project: string) =>
+      show(
+        (await operation(home(), project)) ?? {
+          projectId: project,
+          status: "absent",
+        },
+      ),
+    );
 program
   .command("doctor")
   .description("检查运行条件和已知缺口")
