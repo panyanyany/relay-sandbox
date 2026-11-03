@@ -76,11 +76,15 @@ export async function relayConfiguration(home: string, project: string) {
       source: credential?.source ?? ("missing" as const),
       apiKeyEnv: profile?.apiKeyEnv ?? null,
       command: profile ? localCommand(home, "credential-set", project) : null,
+      prepareFile: {
+        tool: "initialize_relay",
+        arguments: { project, mode: "file" },
+      },
     },
     nextAction: !profile
       ? "configure_relay"
       : !credential
-        ? "run_local_credential_command"
+        ? "initialize_relay"
         : "check_relay_configuration",
   };
 }
@@ -131,13 +135,16 @@ export async function configureRelay(
   input: z.infer<typeof relaySetupSchema>,
 ) {
   return withProjectSetupLock(home, input.project, () =>
-    configureRelayLocked(home, input),
+    configureRelayLocked(home, input).then(() =>
+      relayConfiguration(home, input.project),
+    ),
   );
 }
 // 内部保存入口要求调用方已持有项目配置锁，导入流程在凭据和模板收尾后才释放。
 export async function configureRelayLocked(
   home: string,
   input: z.infer<typeof relaySetupSchema>,
+  replacingCredential = false,
 ) {
   const checked = relaySetupSchema.parse(input);
   const endpoint = new URL(checked.endpoint);
@@ -177,12 +184,29 @@ export async function configureRelayLocked(
   doc.setIn(["developmentAgent", "profile"], name);
   configSchema.parse(doc.toJS());
   // 新档案只继承凭据值，不继承共享存储槽；错误示范：继承变量名会跨项目覆盖。
-  if (!own && existing && !(await readCredential(home, profile))) {
+  if (
+    !replacingCredential &&
+    !own &&
+    existing &&
+    !(await readCredential(home, profile))
+  ) {
     const inherited = await readCredential(home, existing);
     if (inherited) await saveCredential(home, profile.apiKeyEnv, inherited.key);
   }
   await writeYaml(join(home, "profiles", `${name}.yaml`), stringify(profile));
   await writeYaml(path, doc.toString(), projectMode);
   await registerProjectLocked(home, checked.project, root);
-  return relayConfiguration(home, checked.project);
+  return profile;
+}
+
+// 模板基线只覆盖非秘密配置；凭据替换不会制造配置冲突。
+export async function relayConfigurationDigest(home: string, project: string) {
+  const config = await loadConfig(await resolveProject(home, project));
+  const profile = await optionalProfile(home, config.developmentAgent.profile);
+  return digest(
+    JSON.stringify({
+      agent: config.developmentAgent,
+      profile: profile ?? null,
+    }),
+  );
 }

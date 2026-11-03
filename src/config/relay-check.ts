@@ -37,7 +37,10 @@ export async function checkRelayConfiguration(
       await dockerClient().getImage(image).inspect();
     } catch (error) {
       issues.push("local_image_unavailable");
-      diagnostics.push({ stage: "image", error: formatError(error) });
+      diagnostics.push({
+        stage: "image",
+        error: formatError(error, credential ? [credential.key] : []),
+      });
     }
   }
   if (!testConnection || !credential || issues.length)

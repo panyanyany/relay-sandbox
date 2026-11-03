@@ -1,4 +1,8 @@
 import {
+  setRelayCredential,
+  suppliedCredentialSchema,
+} from "../config/relay-credential.js";
+import {
   initializeRelay,
   initializeSchema,
   importRelayConfiguration,
@@ -12,20 +16,40 @@ import {
   relaySetupSchema,
 } from "../config/relay-setup.js";
 import { checkRelayConfiguration } from "../config/relay-check.js";
-import { formatError } from "../audit/redaction.js";
-// 配置工具只接收非敏感参数；密钥由本机隐藏输入或受控私有模板录入。
+import { formatError, redact } from "../audit/redaction.js";
+// 先处理字符串值再序列化；错误示范：序列化后替换会漏掉转义密钥或破坏JSON。
+function redactValues(value: unknown, secrets: string[]): unknown {
+  if (typeof value === "string") return redact(value, secrets);
+  if (Array.isArray(value))
+    return value.map((item) => redactValues(item, secrets));
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        redactValues(item, secrets),
+      ]),
+    );
+  return value;
+}
+// 默认引导本机私有录入；用户主动提供密钥时直接保存，成功和失败均按实际值脱敏。
 export function registerRelaySetup(server: McpServer, home: string) {
-  const result = async (operation: () => Promise<unknown>) => {
+  const result = async (
+    operation: () => Promise<unknown>,
+    secrets: string[] = [],
+  ) => {
     try {
       return {
         content: [
-          { type: "text" as const, text: JSON.stringify(await operation()) },
+          {
+            type: "text" as const,
+            text: JSON.stringify(redactValues(await operation(), secrets)),
+          },
         ],
       };
     } catch (error) {
       return {
         isError: true,
-        content: [{ type: "text" as const, text: formatError(error) }],
+        content: [{ type: "text" as const, text: formatError(error, secrets) }],
       };
     }
   };
@@ -33,10 +57,26 @@ export function registerRelaySetup(server: McpServer, home: string) {
     "initialize_relay",
     {
       description:
-        "首次配置入口。只询问缺失的地址、模型和项目；新项目默认Claude Code，文件模板预填已有设置。用户明确选择目录后才传projectPath及confirmProject=true自动注册；conversation模式配置并返回隐藏录入命令，file模式创建私有中文模板。不要向用户罗列工具或JSON，不接收密钥。",
+        "首次配置入口。只询问缺失的地址、模型和项目；新项目默认Claude Code，文件模板预填已有设置。用户明确选择目录后才传projectPath及confirmProject=true自动注册；conversation模式可用apiKey保存用户主动提供的密钥并检查；未提供密钥时同时返回隐藏命令和credentialFile编辑路径。file模式创建私有中文模板。不主动索取聊天密钥，不重复要求录入；会话记录风险仅提醒一次。",
       inputSchema: initializeSchema,
     },
-    (input) => result(() => initializeRelay(home, input)),
+    (input) =>
+      result(
+        () => initializeRelay(home, input),
+        input.apiKey ? [input.apiKey] : [],
+      ),
+  );
+  server.registerTool(
+    "set_relay_credential",
+    {
+      description:
+        "用户主动在聊天提供已配置项目的密钥时直接保存并执行本机检查，无需CLI或重新提供地址模型；不主动索取聊天密钥，不回显密钥，提醒一次会话/工具记录可能保留。默认不联网。",
+      inputSchema: z
+        .object({ project: z.string(), apiKey: suppliedCredentialSchema })
+        .strict(),
+    },
+    ({ project, apiKey }) =>
+      result(() => setRelayCredential(home, project, apiKey), [apiKey]),
   );
   server.registerTool(
     "import_relay_configuration",
@@ -51,7 +91,7 @@ export function registerRelaySetup(server: McpServer, home: string) {
     "get_relay_configuration",
     {
       description:
-        "查询中转沙箱自己的模型配置。无project时列出已注册项目；有project时返回开发Agent、中转地址、模型、凭据就绪状态和隐藏输入命令，不返回密钥。不需要编辑容器的Claude设置或询问安装目录。",
+        "查询中转沙箱自己的模型配置。无project时列出已注册项目；有project时返回开发Agent、中转地址、模型、凭据就绪状态和隐藏输入命令，不返回密钥。缺少凭据时按credential.prepareFile准备模板，再同时展示文件实际路径和隐藏命令；用户已主动提供密钥时直接调用set_relay_credential。不需要编辑容器的Claude设置或询问安装目录。",
       inputSchema: { project: z.string().optional() },
     },
     ({ project }) =>

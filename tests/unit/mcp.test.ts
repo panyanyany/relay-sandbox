@@ -39,6 +39,8 @@ test("stdio MCP 可发现工具，不能注册任意宿主路径", async () => {
     expect(capability.observation.boundedWait.supported).toBe(true);
     expect(capability.observation.eventHooks.supported).toBe(true);
     expect(capability.observation.hostWakeup.supported).toBe(false);
+    expect(capability.configuration.secretsAcceptedByMcp).toBe(true);
+    expect(capability.configuration.userProvidedSecretsOnly).toBe(true);
     expect(capability.permissions.source).toBe("host_only");
     expect(capability.permissions.mutableDuringTask).toBe(false);
     expect(capability.network.externalIntranetDefault).toBe("allow");
@@ -53,6 +55,7 @@ test("stdio MCP 可发现工具，不能注册任意宿主路径", async () => {
       "subscribe_task_events",
       "unsubscribe_task_events",
       "get_task_event_subscription",
+      "set_relay_credential",
       "initialize_relay",
       "import_relay_configuration",
       "get_relay_configuration",

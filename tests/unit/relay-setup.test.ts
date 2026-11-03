@@ -213,8 +213,8 @@ test("创建任务使用本机凭据文件，无需重启或注入环境变量",
   expect(JSON.stringify(task)).not.toContain("private-test-value");
 });
 
-// 使用真实协议参数校验，确认MCP不接收密钥字段并能够完成非敏感设置。
-test("MCP发现配置入口，严格拒绝密钥字段，普通配置与查询可用", async () => {
+// 低层非敏感配置入口仍严格拒绝密钥；主动提供的密钥由初始化或专用入口处理。
+test("非敏感configure_relay拒绝密钥字段，普通配置与查询可用", async () => {
   const { home } = await fixture();
   const server = new McpServer({ name: "setup", version: "1" });
   registerRelaySetup(server, home);

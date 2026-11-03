@@ -1,7 +1,12 @@
 import {
+  completeCredentialSetup,
+  suppliedCredentialSchema,
+} from "./relay-credential.js";
+import {
   templatePath,
   checkedTemplate,
   privateFile,
+  assertTemplateBaseline,
 } from "./relay-template.js";
 import { withProjectSetupLock } from "../projects/lock.js";
 import { constants } from "node:fs";
@@ -12,10 +17,11 @@ import { z } from "zod";
 import { agentType } from "./schema.js";
 import {
   configureRelayLocked,
+  relayConfigurationDigest,
   relaySetupSchema,
   relayConfiguration,
 } from "./relay-setup.js";
-import { saveCredential, credentialSaveStatus } from "./credentials.js";
+import { saveCredential } from "./credentials.js";
 import { checkRelayConfiguration } from "./relay-check.js";
 import {
   projectMetadata,
@@ -24,7 +30,7 @@ import {
   resolveProject,
   validateId,
 } from "../projects/registry.js";
-import { loadConfig, loadProfile } from "./load.js";
+import { credentialTarget, credentialOutcome } from "./relay-outcome.js";
 
 export const initializeSchema = z
   .object({
@@ -35,8 +41,13 @@ export const initializeSchema = z
     agent: agentType.optional(),
     endpoint: z.string().optional(),
     model: z.string().optional(),
+    apiKey: suppliedCredentialSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (input) => !(input.mode === "file" && input.apiKey !== undefined),
+    "主动提供密钥时请使用conversation模式",
+  );
 // 注册是明确的宿主授权步骤；错误示范：静默覆盖已有标识会将任务导向其他项目。
 async function ensureProject(
   home: string,
@@ -61,7 +72,7 @@ async function ensureProject(
     }
   } else if (!registered) throw new Error("首次初始化需要用户选择项目目录");
 }
-// 对话只接收非敏感参数；文件模式先准备模板，用户填好后再单独导入。
+// 对话允许用户主动提供密钥；未提供时同时准备隐藏录入命令和私有文件。
 export async function initializeRelay(
   home: string,
   raw: z.input<typeof initializeSchema>,
@@ -83,23 +94,46 @@ async function initializeLocked(
       model: input.model,
     });
     await ensureProject(home, input);
-    const configuration = await configureRelayLocked(home, settings);
+    await configureRelayLocked(home, settings, !!input.apiKey);
+    if (input.apiKey) {
+      const outcome = await completeCredentialSetup(
+        home,
+        input.project,
+        input.apiKey,
+      );
+      return { ...outcome.check, ...outcome };
+    }
+    const configuration = await relayConfiguration(home, input.project);
     const check = await checkRelayConfiguration(home, input.project);
+    const entry = !check.credential.ready
+      ? await prepareTemplate(home, { ...input, mode: "file" })
+      : undefined;
     return {
       ...configuration,
       check,
+      credentialFile: entry?.file ?? null,
       userAction: check.ready
         ? "本机配置检查通过，将用于新任务；尚未联网验证"
         : configuration.credential.ready
           ? "根据本机检查结果处理缺失项"
-          : "在本机终端执行credential.command隐藏录入密钥，然后请AI检查",
+          : "可执行credential.command隐藏录入，或直接编辑credentialFile私有配置文件，填好后告诉AI导入",
     };
   }
+  return prepareTemplate(home, input);
+}
+// 不重复录入：返回实际可编辑文件，已有模板保留用户内容。
+async function prepareTemplate(
+  home: string,
+  input: z.infer<typeof initializeSchema>,
+) {
   await ensureProject(home, input);
   const path = await templatePath(home, input.project);
   const current = await relayConfiguration(home, input.project);
   const doc = new Document({
-    metadata: await projectMetadata(home, input.project),
+    metadata: {
+      ...(await projectMetadata(home, input.project)),
+      configurationDigest: await relayConfigurationDigest(home, input.project),
+    },
     agent: input.agent ?? (current.configured ? current.agent : "claude-code"),
     endpoint: input.endpoint ?? current.endpoint ?? "",
     model: input.model ?? current.model ?? "",
@@ -119,6 +153,7 @@ async function initializeLocked(
     node.commentBefore = comment;
   }
   const content = doc.toString();
+  let templateConflict = false;
   try {
     await writeFile(path, content, { flag: "wx", mode: 0o600 });
   } catch (error) {
@@ -127,6 +162,10 @@ async function initializeLocked(
     const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       await privateFile(file);
+      const existing = checkedTemplate(await file.readFile("utf8"), true);
+      templateConflict =
+        existing.metadata.configurationDigest !==
+        (await relayConfigurationDigest(home, input.project));
     } finally {
       await file.close();
     }
@@ -134,8 +173,14 @@ async function initializeLocked(
   return {
     project: input.project,
     file: path,
-    nextAction: "user_edit_private_file",
-    userAction: "填写此文件中的中转地址、模型和密钥，保存后告诉我“填好了”",
+    credential: current.credential,
+    templateConflict,
+    nextAction: templateConflict
+      ? "resolve_template_conflict"
+      : "user_edit_private_file",
+    userAction: templateConflict
+      ? "模板配置基线已过期或缺失；请将原文件移至私有备份，再生成新模板并核对需要保留的内容"
+      : "填写此文件中的中转地址、模型和密钥，保存后告诉我“填好了”",
   };
 }
 // 先验证并保存，再从同一文件句柄清除密钥；校验或保存失败保留输入供重试。
@@ -155,51 +200,53 @@ async function importLocked(home: string, project: string) {
       settings.metadata.root !== metadata.root
     )
       throw new Error("模板所属项目或路径不匹配，请使用该项目生成的模板");
-    const current = await relayConfiguration(home, project);
-    if (!settings.apiKey && !current.credential.ready)
+    assertTemplateBaseline(
+      settings.metadata.configurationDigest,
+      await relayConfigurationDigest(home, project),
+    );
+    if (
+      !settings.apiKey &&
+      !(await relayConfiguration(home, project)).credential.ready
+    )
       throw new Error("没有可用凭据，请填写apiKey后重试");
-    const configuration = await configureRelayLocked(home, {
-      project,
-      agent: settings.agent,
-      endpoint: settings.endpoint,
-      model: settings.model,
-    });
-    const config = await loadConfig(await resolveProject(home, project));
-    const profile = await loadProfile(home, config.developmentAgent.profile);
+    await configureRelayLocked(
+      home,
+      {
+        project,
+        agent: settings.agent,
+        endpoint: settings.endpoint,
+        model: settings.model,
+      },
+      !!settings.apiKey,
+    );
+    const profile = await credentialTarget(home, project);
     if (settings.apiKey)
       await saveCredential(home, profile.apiKeyEnv, settings.apiKey);
-    const clean = Buffer.from(
-      "# 已导入；apiKey留空保留现有凭据，填写新值则替换私有文件凭据。\n" +
-        new Document({
-          ...settings,
-          metadata: await projectMetadata(home, project),
-          apiKey: "",
-        }).toString(),
-    );
-    await file.write(clean, 0, clean.length, 0);
-    await file.truncate(clean.length);
-    const check = await checkRelayConfiguration(home, project);
-    return {
+    return await credentialOutcome(
+      home,
       project,
-      agent: configuration.agent,
-      check,
-      credentialUpdate: credentialSaveStatus(
-        !!settings.apiKey,
-        check.credential.source,
-      ),
-      nextAction:
-        settings.apiKey && check.credential.source === "environment"
-          ? "resolve_credential_override"
-          : check.ready
-            ? "ready"
-            : "resolve_local_check",
-      userAction:
-        settings.apiKey && check.credential.source === "environment"
-          ? "新密钥已保存，但当前环境变量优先，实际仍使用环境注入凭据；请处理覆盖后重新检查"
-          : check.ready
-            ? "本机配置检查通过，将用于新任务；尚未联网验证"
-            : "配置已保存，请处理本机检查指出的缺失项",
-    };
+      !!settings.apiKey,
+      profile.apiKeyEnv,
+      settings.apiKey,
+      async () => {
+        const clean = Buffer.from(
+          "# 已导入；apiKey留空保留现有凭据，填写新值则替换私有文件凭据。\n" +
+            new Document({
+              ...settings,
+              metadata: {
+                ...(await projectMetadata(home, project)),
+                configurationDigest: await relayConfigurationDigest(
+                  home,
+                  project,
+                ),
+              },
+              apiKey: "",
+            }).toString(),
+        );
+        await file.write(clean, 0, clean.length, 0);
+        await file.truncate(clean.length);
+      },
+    );
   } finally {
     await file.close();
   }

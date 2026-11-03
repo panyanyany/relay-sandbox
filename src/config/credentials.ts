@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { chmod, lstat, mkdir, open } from "node:fs/promises";
+import { lstat, mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { writeJson } from "../storage/files.js";
@@ -19,7 +19,8 @@ async function directory(home: string, create = false) {
   const info = await lstat(path);
   if (!info.isDirectory() || info.isSymbolicLink())
     throw new Error("凭据目录必须为真实目录");
-  if (create) await chmod(path, 0o700);
+  if (info.uid !== process.getuid?.() || (info.mode & 0o777) !== 0o700)
+    throw new Error("凭据目录必须为当前用户所有的0700目录");
 }
 // 环境注入优先；本机私有文件使密钥录入后无需重启 MCP，绝不向工具调用方返回原值。
 export async function readCredential(
@@ -59,7 +60,7 @@ export async function readCredential(
     throw error;
   }
 }
-// CLI隐藏录入和受控私有模板导入共用；密钥不接受MCP参数，不写入项目或模型档案。
+// 隐藏录入、私有模板及用户主动提供的密钥共用；不写入项目或模型档案。
 export async function saveCredential(
   home: string,
   variable: string,
@@ -68,6 +69,19 @@ export async function saveCredential(
   const path = credentialPath(home, variable);
   const value = credentialSchema.parse({ version: 1, key });
   await directory(home, true);
+  // 允许修复损坏内容，但不能绕过文件归属、权限及链接检查。
+  try {
+    const info = await lstat(path);
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      info.uid !== process.getuid?.() ||
+      (info.mode & 0o777) !== 0o600
+    )
+      throw new Error("凭据必须为当前用户所有的0600普通文件");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
   await writeJson(path, value);
 }
 

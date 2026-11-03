@@ -48,6 +48,8 @@ relay-sandbox/
 │   ├── traffic/                # 代理、显式客户端、公共文件安装及入口提示
 │   │   └── readiness.ts        # 本地请求验证真实插件剥离内部头
 │   ├── config/                 # 严格 YAML 配置、私有档案及摘要
+│   │   ├── relay-outcome.ts    # 凭据写入前协议校验及分阶段收尾结果
+│   │   ├── relay-credential.ts # 主动提供的密钥保存与本机检查
 │   │   ├── relay-template.ts   # 私有模板校验与敏感解析警告保护
 │   │   ├── relay-initialize.ts # 首次初始化、目录授权与私有模板导入
 │   │   ├── relay-setup.ts      # 项目发现、独立档案与保留注释的配置更新

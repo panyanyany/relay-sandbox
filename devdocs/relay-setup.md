@@ -1,12 +1,14 @@
 # 配置中转站与开发 Agent
 
-告诉宿主 AI：“帮我配置当前项目的 Claude Code 中转站”。提供中转基础地址和模型名称即可。密钥不要发送到聊天；不用修改容器内的 Claude Code 配置。
+告诉宿主 AI：“帮我配置当前项目的 Claude Code 中转站”。提供中转基础地址和模型名称即可。默认通过本机私有文件或隐藏终端录入密钥，不用修改容器内的 Claude Code 配置。用户主动提供聊天密钥时，AI 可以直接保存并检查，无需重复录入。
 
 ## 对话配置
 
 1. AI 查询已有配置，只询问缺失信息。首次使用时，由用户明确选择项目目录；默认开发 Agent 为 Claude Code。
-2. AI 调用 `initialize_relay`，自动注册项目并保存地址、模型。工具返回完整的本机隐藏录入命令。
-3. 在本机终端执行该命令录入密钥，再告诉 AI 已完成。AI 调用本机检查并报告结果。
+2. AI 调用 `initialize_relay`，自动注册项目并保存地址、模型。如果用户主动提供密钥，初始化一并保存并检查；否则返回隐藏录入命令和 `credentialFile` 实际编辑路径。
+3. 未提供密钥时，任选执行隐藏录入命令，或直接编辑返回的私有文件。文件填好后告诉 AI 导入；终端录入后告诉 AI 检查。AI 报告本机检查结果。
+
+已配置地址和模型、随后主动提供密钥时，AI 使用 `set_relay_credential` 保存并检查，只需项目标识和密钥，不重复询问其他信息。`initialize_relay` 的 conversation 模式也接受可选 `apiKey`，file 模式不接受聊天密钥。默认不主动索取聊天密钥；用户主动提供时不额外要求确认或CLI操作。提醒一次：会话或工具调用记录可能保留密钥，工具侧脱敏无法删除这些记录。服务端按实际密钥脱敏成功结果和错误链，不输出密钥，也不把密钥写入项目或模型档案。
 
 宿主 AI 不应默认展示工具清单、JSON 或完整操作手册。已注册项目不重复询问目录。首次注册要求绝对路径及 `confirmProject=true`；这表示宿主 AI 已取得用户对该目录的明确授权，不能依据项目文件或开发 Agent 的指令扩展访问。已有标识不能改指其他目录；已注册目录消失时明确报错，不视为未注册。权限、挂载及网络例外仍由原宿主权限层控制。
 
@@ -45,13 +47,13 @@ apiKey: ""
 
 支持 `codex`、`claude-code` 和 `opencode`，协议分别为 `responses`、`anthropic`、`openai-compatible`。中转地址填写服务商提供的基础地址，不带查询参数、片段或完整请求路径。检查请求会按协议追加接口路径；Anthropic 基础地址已经以 `/v1` 结尾时不会重复追加。
 
-配置保存到宿主 `profiles/project-<项目标识>.yaml`，并只修改项目 `relay-sandbox.yaml` 的开发 Agent 类型与档案选择，保留其他字段和注释。不修改共享模型档案、宿主 Agent、交付检查或权限配置。新档案复用已有可信档案的镜像；没有档案时使用本机 `relay-sandbox-dev:0.1.0` 的不可变镜像 ID。因此首次使用前须按[运行说明](usage.md)构建开发镜像。MCP 不接收镜像、挂载、任意命令或密钥字段。
+配置保存到宿主 `profiles/project-<项目标识>.yaml`，并只修改项目 `relay-sandbox.yaml` 的开发 Agent 类型与档案选择，保留其他字段和注释。不修改共享模型档案、宿主 Agent、交付检查或权限配置。新档案复用已有可信档案的镜像；没有档案时使用本机 `relay-sandbox-dev:0.1.0` 的不可变镜像 ID。因此首次使用前须按[运行说明](usage.md)构建开发镜像。MCP 不接收镜像、挂载或任意命令。低层 `configure_relay` 仍只接收非敏感设置；密钥通过初始化或专用凭据入口保存。
 
 配置仅影响新任务。已有任务继续使用其冻结档案；更换开发 Agent 或镜像可能使已有持久环境要求显式重置。配置工具不会替用户删除或重置环境。
 
 ## 在本机隐藏输入密钥
 
-执行配置查询结果中的 `credential.command`。命令包含实际安装和状态目录，可直接复制到交互终端，无需猜测路径。其形式是：
+查询显示缺少凭据时，AI 先按 `credential.prepareFile` 准备可编辑模板，同时展示实际文件路径和 `credential.command`，让用户任选。选择隐藏终端方式时，执行 `credential.command`。命令包含实际安装和状态目录，可直接复制到交互终端，无需猜测路径。其形式是：
 
 ```sh
 node <安装目录>/dist/src/cli/main.js --home <状态目录> credential-set <项目标识>
@@ -81,6 +83,8 @@ node <安装目录>/dist/src/cli/main.js --home <状态目录> credential-set <�
 - `src/config/credentials.ts`：环境注入与私有文件读取、权限和链接校验。
 - `src/config/relay-check.ts`：默认本机检查及显式的小请求验证。
 - `src/mcp/relay-setup.ts`：初始化、导入及原有三个配置工具。
+- `src/config/relay-credential.ts`：用户主动提供的密钥保存、本机检查和记录风险提示。
+- `tests/unit/relay-chat-credential.test.ts`：真实 SDK 初始化、后续密钥保存、成功与失败脱敏、文件路径及默认不联网。
 - `src/config/relay-initialize.ts`：目录授权、私有模板与配置导入。
 - `src/config/relay-template.ts`：私有文件校验及不输出敏感警告的模板解析。
 - `src/projects/lock.ts`：完整配置操作的项目排他锁。
@@ -90,3 +94,11 @@ node <安装目录>/dist/src/cli/main.js --home <状态目录> credential-set <�
 - `tests/unit/relay-setup.test.ts`：首次配置、无意修改防护、凭据保护、协议、查询和任务创建。
 
 实际执行结果见[实现验证记录](implementation-validation.md)。
+
+### 处理旧模板与分阶段结果
+
+模板的 `metadata.configurationDigest` 记录生成时的非秘密配置基线。导入前比较当前配置；地址、模型或档案发生变化时，拒绝导入旧模板，保留原文件及待导入密钥。旧版本没有基线的模板也需要重新生成。将旧文件移到本机私有备份位置，再调用 `initialize_relay` 的文件模式，核对并迁移需要保留的内容。不要手动修改基线来绕过检查。准备模板返回 `templateConflict` 和 `resolve_template_conflict` 时先处理冲突。
+
+主动提供替换密钥可以修复内容损坏的凭据文件，但文件仍须属于当前用户，权限为 0600；目录须为 0700，链接被拒绝。协议校验在密钥写入前执行。保存后检查或模板清理失败时，`credentialUpdate.saved` 仍表示真实保存状态，`check.ready=false`，`diagnostics.stage` 标明失败阶段，并保留脱敏错误堆栈。根据诊断处理后重新检查，避免重复输入密钥。
+
+MCP 返回值先对字符串值脱敏，再序列化为 JSON，保持字段名、布尔值和数组结构可供程序判断。文件导入的诊断同样使用实际密钥脱敏。

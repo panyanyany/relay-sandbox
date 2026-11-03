@@ -177,6 +177,9 @@ test("环境变量覆盖新密钥时报告保存与生效状态，默认不联�
   await configureRelay(home, settings);
   const profile = await loadProfile(home, "project-demo");
   vi.stubEnv(profile.apiKeyEnv, "synthetic-environment-key");
+  // 配置已改变，重新生成模板后再测试环境覆盖，不能沿用旧基线。
+  await rm(file);
+  await initializeRelay(home, { project: "demo", mode: "file" });
   await fill(file);
   const fetch = vi.spyOn(globalThis, "fetch");
   const imported = await importRelayConfiguration(home, "demo");
