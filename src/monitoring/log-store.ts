@@ -69,7 +69,9 @@ export async function pruneTelemetry(
   }
   const removed: string[] = [];
   for (const name of names.filter((n) =>
-    /^(?:samples\.jsonl(?:\.\d+)?|latest\.json)$/.test(n),
+    /^(?:(?:samples|runtime-events)\.jsonl(?:\.\d+)?|latest\.json|events-status\.json|execution\.json|stop-[a-z_]+\.json)$/.test(
+      n,
+    ),
   )) {
     const path = join(directory, name);
     try {

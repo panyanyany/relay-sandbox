@@ -32,7 +32,12 @@ export async function synchronizeWorkspace(
     await cp(host, baseline, { recursive: true, verbatimSymlinks: true });
   } else if (reuse) {
     const current = join(root, "environment-current");
-    await download(dockerClient(), task.containerId!, current);
+    await download(
+      dockerClient(),
+      task.containerId!,
+      current,
+      task.config.resources,
+    );
     await snapshot(current, baseline, []);
     const merged = await mergeCandidate(
       join(environment, "host-baseline"),

@@ -1,3 +1,4 @@
+import { recordStop, type StopSource } from "../monitoring/termination.js";
 import { requestPreparationCancellation } from "./preparation-control.js";
 import { withTaskLock } from "./lock.js";
 import { ownsRuntime, releaseEnvironment } from "../environments/ownership.js";
@@ -66,17 +67,23 @@ async function recordFailure(
 export async function stopTaskResources(
   home: string,
   task: Task,
+  source: StopSource = "resource_stop",
 ): Promise<void> {
-  const errors: unknown[] = [];
-  await attempt(() => stopEnvironments(dockerClient(), home, task.id), errors);
-  for (const id of await taskContainers(
-    task,
-    errors,
-    await ownsRuntime(home, task),
-  ))
-    await attempt(() => stopRuntime(dockerClient(), id), errors);
-  if (errors.length)
-    throw new AggregateError(errors, "任务部分运行资源未确认停止");
+  return recordStop(home, task, source, async () => {
+    const errors: unknown[] = [];
+    await attempt(
+      () => stopEnvironments(dockerClient(), home, task.id),
+      errors,
+    );
+    for (const id of await taskContainers(
+      task,
+      errors,
+      await ownsRuntime(home, task),
+    ))
+      await attempt(() => stopRuntime(dockerClient(), id), errors);
+    if (errors.length)
+      throw new AggregateError(errors, "任务部分运行资源未确认停止");
+  });
 }
 // 准备阶段共享租约；不能一边清理目录，一边继续创建或借用项目环境。
 async function withPreparationLock<T>(
@@ -120,7 +127,7 @@ async function stopTaskUnlocked(home: string, id: string) {
     throw new Error("应用正在进行，不能中途清理；请等待结果并检查应用日志");
   if (task.state === "cleaned") return task;
   try {
-    await stopTaskResources(home, task);
+    await stopTaskResources(home, task, "cancel");
   } catch (error) {
     return recordFailure(
       home,
@@ -149,7 +156,7 @@ async function cleanupTaskUnlocked(home: string, id: string) {
     errors: unknown[] = [];
   await attempt(() => stopMonitor(home, id), errors);
   if (task.environmentId && (await ownsRuntime(home, task))) {
-    await attempt(() => stopTaskResources(home, task), errors);
+    await attempt(() => stopTaskResources(home, task, "cleanup"), errors);
     await attempt(() => rememberPersistentAudit(home, task), errors);
   }
   await attempt(() => stopEnvironments(docker, home, id), errors);

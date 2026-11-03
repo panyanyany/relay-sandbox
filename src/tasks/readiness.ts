@@ -33,3 +33,13 @@ export function taskLockBusy(error: unknown, home: string, id: string) {
       join(taskPath(home, id), "operation.lock")
   );
 }
+
+// 旧版没有阶段标记，仅兼容明确的归档类型错误；不把任意执行失败当成可收集。
+export function canRecollect(task: Task) {
+  return (
+    task.state === "failed" &&
+    (task.failureStage === "collection" ||
+      (!task.failureStage &&
+        /^(?:Error: )?不支持的归档类型:/.test(task.error ?? "")))
+  );
+}

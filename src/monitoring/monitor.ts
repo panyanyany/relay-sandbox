@@ -1,3 +1,5 @@
+import { MemoryPressure, publishPressure } from "./pressure.js";
+import { observeDockerEvents } from "./runtime-events.js";
 import { ownsRuntime } from "../environments/ownership.js";
 import { readFile, writeFile, unlink, open } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -49,6 +51,16 @@ export async function monitorTask(home: string, id: string) {
   );
   const controller = new AbortController(),
     previous = new Map<string, Docker.ContainerStats>();
+  const pressure = new MemoryPressure();
+  let eventFailure: unknown;
+  const events = observeDockerEvents(
+    home,
+    await getTask(home, id),
+    controller.signal,
+  ).catch((error) => {
+    eventFailure = error;
+    controller.abort();
+  });
   const stop = () => controller.abort();
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
@@ -67,8 +79,11 @@ export async function monitorTask(home: string, id: string) {
           policy,
         );
         await writeJson(join(directory, "latest.json"), sample);
+        await publishPressure(home, id, pressure.update(task, sample));
       } catch (error) {
         if (controller.signal.aborted) break;
+        pressure.reset();
+        await publishPressure(home, id, []);
         const failure = {
           time: new Date().toISOString(),
           taskId: id,
@@ -91,9 +106,14 @@ export async function monitorTask(home: string, id: string) {
       }
     } while (!controller.signal.aborted);
   } finally {
+    controller.abort();
+    await events;
+    await publishPressure(home, id, []);
     process.off("SIGTERM", stop);
     process.off("SIGINT", stop);
     await unlink(lock);
+    if (eventFailure)
+      throw new Error("Docker事件采集失败", { cause: eventFailure });
   }
 }
 // 创建及恢复任务时启动；启动成功以宿主锁实际出现为准，不能仅依据 spawn。

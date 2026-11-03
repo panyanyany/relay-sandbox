@@ -48,9 +48,12 @@ export class TaskSubscriptions {
       entry.watcher = watch(taskPath(this.home, id), (_event, filename) => {
         if (
           filename !== null &&
-          !["task.json", "operation.lock", "preparation-cancel.json"].includes(
-            filename.toString(),
-          )
+          ![
+            "task.json",
+            "operation.lock",
+            "preparation-cancel.json",
+            "resource-pressure.json",
+          ].includes(filename.toString())
         )
           return;
         if (

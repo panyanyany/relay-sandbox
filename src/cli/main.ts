@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { recollectTask } from "../tasks/recollect.js";
 import { registerCredentialCommands } from "./credentials.js";
 import { readEnvironment } from "../environments/store.js";
 import {
@@ -170,6 +171,10 @@ program
     const chunk = data.subarray(offset, offset + 65536);
     show({ text: chunk.toString(), next: offset + chunk.length });
   });
+program
+  .command("collect <id>")
+  .description("仅重试产物收集，不再次运行开发Agent")
+  .action(async (id: string) => show(await recollectTask(home(), id)));
 program
   .command("result <id>")
   .action(async (id: string) => show(await taskResult(home(), id)));

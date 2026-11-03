@@ -33,7 +33,14 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         .Id,
       id = randomUUID();
     const config = configSchema.parse({
-      logging: { sampleIntervalSeconds: 1, maxFileBytes: 4096, maxFiles: 2 },
+      logging: {
+        sampleIntervalSeconds: 1,
+        maxFileBytes: 4096,
+        maxFiles: 2,
+        memoryWarningPercent: 10,
+        memoryWarningSeconds: 1,
+      },
+      resources: { memoryMiB: 256 },
     });
     const handle = await createRuntime(docker, id, image, image, config);
     const task: Task = {
@@ -73,6 +80,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         if (
           last &&
           "containers" in last &&
+          status.resourceWarnings.length > 0 &&
           last.containers.some(
             (c) =>
               c.metrics &&
@@ -103,6 +111,9 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         await setTimeout(200);
       }
       expect(crashed).toBe(true);
+      expect(
+        (await telemetryStatus(home, id)).runtimeEvents?.lastEvent,
+      ).not.toBeNull();
       expect((await telemetryStatus(home, id)).running).toBe(true);
       const root = taskPath(home, id);
       await mkdir(join(root, "backup"));

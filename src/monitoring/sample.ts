@@ -1,3 +1,4 @@
+import { cgroupMemory } from "./cgroup.js";
 import type Docker from "dockerode";
 import { dockerClient } from "../docker/client.js";
 import type { Task } from "../tasks/types.js";
@@ -8,7 +9,12 @@ export interface MetricsInput {
     online_cpus?: number;
   };
   precpu_stats?: MetricsInput["cpu_stats"];
-  memory_stats: { usage?: number; limit?: number };
+  memory_stats: {
+    usage?: number;
+    limit?: number;
+    max_usage?: number;
+    failcnt?: number;
+  };
   networks?: Docker.NetworkStats;
   pids_stats?: Docker.PidsStats;
   blkio_stats?: Pick<Docker.BlkioStats, "io_service_bytes_recursive">;
@@ -31,6 +37,8 @@ export function summarizeStats(stats: MetricsInput, previous?: MetricsInput) {
       systemDelta > 0 && cpuDelta >= 0 && cpus
         ? (cpuDelta / systemDelta) * cpus * 100
         : null,
+    memoryPeakBytes: memory.max_usage ?? null,
+    memoryFailCount: memory.failcnt ?? null,
     memoryUsageBytes: memory.usage ?? null,
     memoryLimitBytes: memory.limit ?? null,
     memoryPercent:
@@ -93,6 +101,9 @@ export async function sampleTask(
         exitCode: info.State.ExitCode,
         oomKilled: info.State.OOMKilled,
         restartCount: info.RestartCount,
+        cgroup: info.State.Running
+          ? await cgroupMemory(info.State.Pid, id)
+          : { coverage: "unavailable", reason: "container_not_running" },
         metrics,
       });
     } catch (error) {

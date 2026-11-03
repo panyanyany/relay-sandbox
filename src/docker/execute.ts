@@ -15,6 +15,7 @@ export async function execute(
   timeoutMs: number,
   maxBytes: number,
   secrets: string[] = [],
+  onTimeoutStop?: (stop: () => Promise<unknown>) => Promise<unknown>,
 ): Promise<ExecutionResult> {
   const container = docker.getContainer(containerId);
   const exec = await container.exec({
@@ -50,7 +51,9 @@ export async function execute(
       }),
       new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => {
-          timeoutStop = container.stop({ t: 1 });
+          timeoutStop = onTimeoutStop
+            ? onTimeoutStop(() => container.stop({ t: 3 }))
+            : container.stop({ t: 3 });
           void timeoutStop.then(
             () => reject(new Error("任务执行超时，整个容器已停止")),
             (error) =>

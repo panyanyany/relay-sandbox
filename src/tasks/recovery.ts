@@ -69,7 +69,7 @@ export async function superviseOnce(
       !["completed", "cleaned", "stopped", "interrupted"].includes(task.state)
     ) {
       try {
-        await stopTaskResources(home, task);
+        await stopTaskResources(home, task, "supervisor");
       } catch (error) {
         const failure = policyFailure
           ? new AggregateError(
@@ -148,7 +148,7 @@ export async function resumeTask(home: string, id: string) {
     const docker = dockerClient();
     try {
       // 先回收旧代理和旧进程，恢复只保留文件；不从最新宿主配置扩大授权。
-      await stopTaskResources(home, task);
+      await stopTaskResources(home, task, "resume");
       if ((await taskProjectMode(home, task)) === "direct")
         await validateDirectRuntime(home, task, docker);
       task.state = "preparing";
@@ -157,7 +157,7 @@ export async function resumeTask(home: string, id: string) {
     } catch (error) {
       let failure = error;
       try {
-        await stopTaskResources(home, task);
+        await stopTaskResources(home, task, "failure");
       } catch (cleanup) {
         failure = new AggregateError(
           [error, cleanup],

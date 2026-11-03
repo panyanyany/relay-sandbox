@@ -50,6 +50,7 @@ test("stdio MCP 可发现工具，不能注册任意宿主路径", async () => {
     expect(capability.trafficAudit.failureBlocksCommunication).toBe(false);
 
     for (const name of [
+      "collect_artifacts",
       "get_capabilities",
       "wait_task",
       "subscribe_task_events",

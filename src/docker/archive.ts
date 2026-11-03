@@ -1,5 +1,11 @@
+import { ExportBudget, type ExportLimits } from "./export-budget.js";
+import {
+  archivePath,
+  materializeLinks,
+  type ArchiveEntry,
+} from "./archive-links.js";
 import { MAX_EXPORT_FILE_BYTES } from "../workspace/stable-file.js";
-import { PassThrough } from "node:stream";
+import { PassThrough, type Readable } from "node:stream";
 import { pack, extract } from "tar-stream";
 import { mkdir, writeFile, symlink, chmod } from "node:fs/promises";
 import { join, dirname } from "node:path";
@@ -56,22 +62,27 @@ export async function download(
   docker: Docker,
   id: string,
   target: string,
+  limits: ExportLimits = {},
 ): Promise<void> {
   await mkdir(target, { recursive: true, mode: 0o700 });
   const archive = extract();
-  const seen = new Set<string>();
+  const budget = new ExportBudget(limits);
+  const seen = new Map<string, ArchiveEntry>();
   const links = new Set<string>();
   const modes: { path: string; mode: number }[] = [];
   archive.on("entry", (header, stream, next) => {
+    stream.on("error", (error) => archive.destroy(error));
     void (async () => {
-      const name = header.name
+      const raw = header.name
         .replace(/^(?:workspace|\.)(?:\/|$)/, "")
         .replace(/\/$/, "");
+      const name = raw ? archivePath(header.name) : "";
       if (!name) {
         stream.resume();
         next();
         return;
       }
+      budget.entry();
       const parts = name.split("/");
       if (
         name.startsWith("/") ||
@@ -80,8 +91,8 @@ export async function download(
       )
         throw new Error("危险或重复归档条目");
       if (parts.some((_, i) => links.has(parts.slice(0, i).join("/"))))
-        throw new Error("归档试图穿过符号链接");
-      seen.add(name);
+        throw new Error(`归档条目试图穿过链接: ${name}`);
+      seen.set(name, { type: header.type ?? "file" });
       const path = join(target, name);
       await mkdir(dirname(path), { recursive: true });
       if (header.type === "directory") {
@@ -89,6 +100,10 @@ export async function download(
         modes.push({ path, mode: header.mode });
       } else if (header.type === "symlink") {
         await symlink(header.linkname!, path);
+        links.add(name);
+      } else if (header.type === "link") {
+        const target = archivePath(header.linkname ?? "");
+        seen.set(name, { type: "link", target });
         links.add(name);
       } else if (header.type === "file") {
         const chunks: Buffer[] = [];
@@ -98,6 +113,7 @@ export async function download(
             ? value
             : Buffer.from(value as Uint8Array);
           size += chunk.length;
+          budget.reserve(chunk.length);
           if (size > MAX_EXPORT_FILE_BYTES)
             throw new Error("单文件导出超过 256MiB，请调整配置或拆分文件");
           chunks.push(chunk);
@@ -106,23 +122,35 @@ export async function download(
           mode: header.mode,
           flag: "wx",
         });
-      } else throw new Error(`不支持的归档类型: ${header.type}`);
+      } else
+        throw new Error(
+          `不支持的归档类型: ${header.type}, 条目: ${header.name}, 目标: ${header.linkname ?? "无"}`,
+        );
       stream.resume();
       next();
     })().catch((error) =>
       archive.destroy(
-        error instanceof Error ? error : new Error(String(error)),
+        new Error(
+          `归档条目失败: ${header.name}, 类型: ${header.type}, 目标: ${header.linkname ?? "无"}`,
+          { cause: error },
+        ),
       ),
     );
   });
   const source = await docker
     .getContainer(id)
     .getArchive({ path: "/workspace/." });
-  await new Promise<void>((resolve, reject) => {
-    archive.on("finish", resolve);
-    archive.on("error", reject);
-    source.on("error", reject);
-    source.pipe(archive);
-  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      archive.on("finish", resolve);
+      archive.on("error", reject);
+      source.on("error", reject);
+      source.pipe(archive);
+    });
+  } finally {
+    (source as Readable).destroy();
+    archive.destroy();
+  }
+  await materializeLinks(target, seen, budget);
   for (const entry of modes.reverse()) await chmod(entry.path, entry.mode);
 }

@@ -186,6 +186,15 @@ export async function serveMcp(home: string): Promise<void> {
     async ({ id, prompt }) => text(() => dispatchTask(home, id, prompt)),
   );
   server.registerTool(
+    "collect_artifacts",
+    {
+      description:
+        "后台重试失败的产物收集，不重新运行Agent；用wait_task等待结果。仅收集失败可用，清理前使用。",
+      inputSchema: { id: z.string() },
+    },
+    async ({ id }) => text(() => dispatchOperation(home, id, "collect")),
+  );
+  server.registerTool(
     "get_task",
     {
       description:

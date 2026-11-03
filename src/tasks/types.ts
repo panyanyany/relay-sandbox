@@ -49,10 +49,14 @@ export interface Task {
   containerId?: string;
   networkId?: string;
   artifactDigest?: string;
+  // 每次收集产生新代次，候选准备后绑定；返工与重收集不能沿用旧候选。
+  resultGeneration?: string;
+  candidateGeneration?: string;
   review?: ReviewDecision;
   deliveryPrepared?: boolean;
   applicationStatus?: "not_attempted" | "in_progress" | "applied" | "failed";
   checks: CheckResult[];
   warnings: string[];
+  failureStage?: "execution" | "collection";
   error?: string;
 }

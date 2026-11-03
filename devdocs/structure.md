@@ -71,6 +71,7 @@ relay-sandbox/
 │   │   ├── start.ts            # MCP创建后立即派发后台准备
 │   │   ├── preparation-control.ts # 跨进程取消标记及文件复制中止信号
 │   │   ├── readiness.ts        # 新任务完整就绪校验及旧容器兼容
+│   │   ├── recollect.ts        # 仅重试收集失败的产物，不重跑开发模型
 │   │   ├── dispatch.ts         # 后台准备、开发及检查进程派发
 │   │   ├── environment*.ts     # 冻结资源、独立观察环境、状态和生命周期
 │   │   ├── environment-diagnostics.ts # 宿主脱敏原因链及诊断写盘失败留证
@@ -88,17 +89,25 @@ relay-sandbox/
 │   │   ├── lock.ts             # 任务互斥、进程身份及租约
 │   │   ├── recovery.ts         # 失联协调、恢复与到期回收
 │   │   └── supervisor.ts       # 独立监督器循环
+│   │   └── artifact-state.ts   # 结果与候选失效、当前收集代次及确认守卫
 │   ├── workspace/              # 受控文件读取、完整快照、清单和差异
 │   │   ├── stable-file.ts      # 固定缓冲区安全读取、流式摘要与共享采集限制
 │   │   └── access.ts           # 主项目冻结访问模式、挂载及目录身份核验
 │   ├── docker/                 # 运行模板、资源限制、归档、执行及服务
+│   │   ├── export-budget.ts    # Docker导出累计字节与条目预算
+│   │   ├── archive-links.ts    # 归档内硬链接校验与独立文件展开
 │   │   └── preparation-timeout.ts # 仅准备调用链生效的Docker请求超时
 │   ├── network/                # 宿主地址探测、任务网络规则
 │   ├── agents/
 │   │   ├── host/               # 宿主接入、审查契约及严格审核 Schema
 │   │   └── development/        # 三种独立适配器及固定注册表
 │   ├── reporting/             # 生成用户报告与校验实际最终输出
+│   │   └── runtime-diagnostics.ts # 事件证据、覆盖缺口及因果边界文案
 │   ├── monitoring/            # 独立指标进程、采样、状态、日志轮转
+│   │   ├── runtime-events.ts   # Docker最小事件流、断流诊断及重连
+│   │   ├── cgroup.ts           # 本机容器身份核对及内存峰值、OOM计数
+│   │   ├── termination.ts      # 固定来源的停止请求与结果留证
+│   │   └── pressure.ts         # 持续高内存提醒、快照事实及发布
 │   ├── audit/                  # bpftrace 部分采集、脱敏与覆盖报告
 │   ├── delivery/               # 合并、检查事实、放行策略、应用与故障诊断
 │   └── storage/                # 原子 JSON、JSONL、摘要及清理错误保留
@@ -109,6 +118,7 @@ relay-sandbox/
 │   ├── helpers/               # 真实宿主 CLI 会话与输出捕获
 │   └── fixtures/               # 假凭据协议服务，不调用真实计费 API
 ├── devdocs/                    # 功能说明、需求、方案与验证范围
+│   ├── artifact-recovery.md    # 产物硬链接导出与失败重收集
 │   ├── persistent-environments.md # 默认保留、同步及环境生命周期
 │   ├── task-events.md          # 任务资源订阅及宿主续接边界
 │   ├── relay-setup.md          # MCP中转配置与本机隐藏凭据录入

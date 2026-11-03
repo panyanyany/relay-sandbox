@@ -1,4 +1,9 @@
-import { requireEnvironmentReady, taskLockBusy } from "./readiness.js";
+import { invalidateResult } from "./artifact-state.js";
+import {
+  requireEnvironmentReady,
+  taskLockBusy,
+  canRecollect,
+} from "./readiness.js";
 import { spawn } from "node:child_process";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
@@ -10,7 +15,8 @@ export type BackgroundOperation =
   | "run"
   | "prepare"
   | "check-candidate"
-  | "initialize-task";
+  | "initialize-task"
+  | "collect";
 // 派发前置为 queued，防止后台进程尚未启动时旧制品被并发应用。
 export async function dispatchOperation(
   home: string,
@@ -42,6 +48,17 @@ export async function dispatchOperation(
         return task;
       }
       requireEnvironmentReady(task);
+      if (operation === "collect") {
+        if (!canRecollect(task))
+          throw new Error("仅产物收集失败的任务可重试收集");
+        invalidateResult(task);
+        task.state = "collecting";
+        task.failureStage = "collection";
+        await saveTask(home, task);
+        return task;
+      }
+      if (operation === "run") invalidateResult(task);
+      if (operation === "prepare") delete task.candidateGeneration;
       task.state = "queued";
       task.deliveryPrepared = false;
       delete task.review;

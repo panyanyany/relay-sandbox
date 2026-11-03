@@ -1,8 +1,10 @@
+import { randomUUID } from "node:crypto";
+import { discardCandidate } from "./artifact-state.js";
 import { requireRuntimeOwner } from "../environments/ownership.js";
 import { formatError } from "../audit/redaction.js";
 import { withTaskLock } from "./lock.js";
 import { join } from "node:path";
-import { rm, cp } from "node:fs/promises";
+import { cp } from "node:fs/promises";
 import { snapshot } from "../workspace/snapshot.js";
 import { verifyCandidate } from "./candidate.js";
 import { mergeCandidate } from "../delivery/merge.js";
@@ -20,17 +22,15 @@ async function prepareDeliveryLocked(home: string, id: string) {
   const root = taskPath(home, id),
     current = join(root, "current"),
     candidate = join(root, "candidate");
-  await rm(current, { recursive: true, force: true });
-  await rm(candidate, { recursive: true, force: true });
+  task.resultGeneration ??= randomUUID();
+  task.state = "checking";
+  await discardCandidate(home, task);
   if ((await taskProjectMode(home, task)) === "direct") {
-    // 重新准备前废止旧审核，失败后也不能继续使用此前的事后检查结论。
-    task.deliveryPrepared = false;
-    delete task.review;
-    task.checks = [];
-    task.state = "checking";
-    await saveTask(home, task);
+    // 直接模式先停止开发进程，再构建当前代次的事后检查候选。
     try {
       await prepareDirectProject(home, task);
+      task.candidateGeneration = task.resultGeneration;
+      await saveTask(home, task);
       return await verifyCandidate(home, task);
     } catch (error) {
       task.state = "failed";
@@ -51,6 +51,8 @@ async function prepareDeliveryLocked(home: string, id: string) {
     current,
     candidate,
   );
+  task.candidateGeneration = task.resultGeneration;
+  await saveTask(home, task);
   if (merged.conflicts.length) {
     task.state = "awaiting_user";
     await saveTask(home, task);

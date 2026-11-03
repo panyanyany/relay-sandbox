@@ -27,7 +27,7 @@ export async function idleEnvironment(home: string, task: Task) {
       !task.networkId
     )
       return;
-    await stopTaskResources(home, task);
+    await stopTaskResources(home, task, "delivery");
     await stopMonitor(home, task.id);
     const docker = dockerClient();
     const failures: unknown[] = [];
@@ -66,13 +66,13 @@ export async function idleEnvironment(home: string, task: Task) {
       // 错误示范：直接在 finally 抛错会覆盖同步错误；统一保留两个原因。
       await withFinalizer(
         () => synchronizeWorkspace(home, task, true, true),
-        () => stopTaskResources(home, task),
+        () => stopTaskResources(home, task, "delivery"),
       );
       environment.needsReset = false;
       await saveEnvironment(home, environment);
     });
   }
-  await stopTaskResources(home, task);
+  await stopTaskResources(home, task, "delivery");
   await stopMonitor(home, task.id);
   await rememberPersistentAudit(home, task);
   await releaseEnvironment(home, task);

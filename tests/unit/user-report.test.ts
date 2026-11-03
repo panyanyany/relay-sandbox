@@ -75,6 +75,12 @@ test("审核通过仍上报敏感访问与覆盖缺口，最终输出才能生�
         },
       ],
     });
+    await writeJson(join(home, "tasks/report/telemetry/events-status.json"), {
+      state: "connected",
+      updatedAt: "before",
+      lastEvent: null,
+      lastIncident: null,
+    });
     const report = await prepareUserReport(home, task.id);
     expect(report.emissionStatus).toBe("prepared");
     expect(report.userMessage).toContain(".ssh/decoy");
@@ -86,7 +92,13 @@ test("审核通过仍上报敏感访问与覆盖缺口，最终输出才能生�
         userMessage: "一切正常",
       }),
     ).rejects.toThrow("不符");
-    // 错误示范：普通采样更新不应让已输出快照失效。
+    // 错误示范：普通采样和成功探针的Docker事件不应让已输出快照失效。
+    await writeJson(join(home, "tasks/report/telemetry/events-status.json"), {
+      state: "connected",
+      updatedAt: "after",
+      lastEvent: { action: "exec_die", exitCode: 0, containerId: "dev" },
+      lastIncident: null,
+    });
     await writeJson(join(home, "tasks/report/telemetry/latest.json"), {
       time: "2026-11-02T10:00:05Z",
       containers: [
@@ -191,6 +203,47 @@ test("检查关闭、审计不可用和部分应用都在用户报告中明确�
     await expect(recordUserEmission(home, task.id, emission)).rejects.toThrow(
       "过期",
     );
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+// 即使容器仍运行，也向用户保留子进程OOM线索及事件流覆盖缺口。
+test("用户报告展示历史事件证据与覆盖缺口，不直接归因本轮", async () => {
+  const home = await mkdtemp(join(tmpdir(), "relay-diagnostic-report-"));
+  try {
+    const task: Task = {
+      id: "report",
+      projectId: "p",
+      projectRoot: "/unused",
+      prompt: "x",
+      config: configSchema.parse({}),
+      configDigest: "c",
+      state: "failed",
+      round: 2,
+      createdAt: "",
+      updatedAt: "",
+      checks: [],
+      warnings: [],
+    };
+    await saveTask(home, task);
+    await writeJson(join(home, "tasks/report/telemetry/events-status.json"), {
+      state: "unavailable",
+      updatedAt: "now",
+      lastEvent: null,
+      lastOom: {
+        containerId: "old-container",
+        action: "oom",
+        time: 100,
+        exitCode: null,
+      },
+      lastGap: { updatedAt: "now", error: "socket closed" },
+    });
+    const report = await prepareUserReport(home, task.id);
+    expect(report.userMessage).toContain("事件=oom");
+    expect(report.userMessage).toContain("old-container");
+    expect(report.userMessage).toContain("socket closed");
+    expect(report.userMessage).toContain("可能为历史记录");
   } finally {
     await rm(home, { recursive: true, force: true });
   }

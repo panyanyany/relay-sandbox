@@ -182,7 +182,7 @@ export async function prepareTask(home: string, id: string): Promise<Task> {
       } catch (error) {
         if (task.environmentId || task.containerId) {
           try {
-            await stopTaskResources(home, task);
+            await stopTaskResources(home, task, "failure");
           } catch (cleanup) {
             error = new AggregateError(
               [error, cleanup],

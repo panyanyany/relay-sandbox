@@ -1,3 +1,4 @@
+import { runtimeDiagnosticLines } from "./runtime-diagnostics.js";
 import { readEnvironment } from "../environments/store.js";
 import { buildPolicySummary, policySummaryLines } from "./policy-summary.js";
 import { createHash } from "node:crypto";
@@ -92,6 +93,18 @@ export async function buildUserReport(home: string, id: string) {
     error: task.error ?? null,
     telemetry: {
       directory: "telemetry/",
+      execution: monitoring.execution,
+      stopHistory: monitoring.stopHistory,
+      resourceWarnings: monitoring.resourceWarnings,
+      lastRuntimeIncident: monitoring.runtimeEvents?.lastIncident ?? null,
+      lastOom: monitoring.runtimeEvents?.lastOom ?? null,
+      eventCoverage: monitoring.runtimeEvents
+        ? {
+            state: monitoring.runtimeEvents.state,
+            gap: monitoring.runtimeEvents.lastGap ?? null,
+            error: monitoring.runtimeEvents.error ?? null,
+          }
+        : null,
       note: "宿主定时指标；无记录或采样间隔内的瞬时变化无法完整回溯",
     },
   };
@@ -138,6 +151,22 @@ export async function buildUserReport(home: string, id: string) {
     ...auditHighlights.map(
       ({ event: e, id }) =>
         `审计 A${id}：${e.target}，${e.action}，${e.result}。`,
+    ),
+    ...(monitoring.execution?.round === task.round &&
+    monitoring.execution?.exitCode === 137
+      ? [
+          "开发进程退出码137：强制终止原因尚需结合宿主停止记录、Docker事件和OOM计数核对。",
+        ]
+      : []),
+    ...monitoring.stopHistory
+      .filter((record) => record.round === task.round)
+      .map(
+        (record) =>
+          `宿主停止记录：来源=${record.source}，结果=${record.status}，请求时间=${record.requestedAt}。`,
+      ),
+    ...runtimeDiagnosticLines(monitoring.runtimeEvents),
+    ...monitoring.resourceWarnings.map(
+      (warning) => `资源提醒：${warning.message}`,
     ),
     `指标日志：${monitoring.latest ? `最后记录 ${monitoring.latest.time}` : "尚无有效采样"}。`,
     ...(monitoring.latest && "kind" in monitoring.latest

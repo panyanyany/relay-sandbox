@@ -1,3 +1,4 @@
+import { readPressure } from "../monitoring/pressure.js";
 import { preparationCancelled } from "./preparation-control.js";
 import { environmentReady, preparationHandoffPending } from "./readiness.js";
 import { createHash } from "node:crypto";
@@ -16,6 +17,7 @@ export async function taskSnapshot(home: string, id: string) {
     ...stored,
     environmentReady: ready,
     cancellationRequested: await preparationCancelled(home, id),
+    resourceWarnings: await readPressure(home, id),
   };
   const revision = createHash("sha256")
     .update(JSON.stringify(task))

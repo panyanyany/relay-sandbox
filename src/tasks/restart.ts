@@ -50,7 +50,7 @@ export async function restartTaskRuntime(
     await saveTask(home, task);
   } catch (error) {
     try {
-      await stopTaskResources(home, task);
+      await stopTaskResources(home, task, "failure");
     } catch (cleanup) {
       throw new AggregateError(
         [error, cleanup],

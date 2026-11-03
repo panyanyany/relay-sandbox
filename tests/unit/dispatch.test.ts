@@ -25,6 +25,9 @@ test("后台派发释放任务锁，早期配置错误可轮询", async () => {
       createdAt: "",
       updatedAt: "",
       round: 0,
+      artifactDigest: "stale",
+      resultGeneration: "old",
+      candidateGeneration: "old",
       checks: [],
       warnings: [],
       containerId: "unused",
@@ -46,6 +49,9 @@ test("后台派发释放任务锁，早期配置错误可轮询", async () => {
     }
     const task = await getTask(home, id);
     expect(task.state).toBe("failed");
+    expect(task.artifactDigest).toBeUndefined();
+    expect(task.resultGeneration).toBeUndefined();
+    expect(task.candidateGeneration).toBeUndefined();
     expect(task.error).toContain("凭据不可用");
     task.state = "stopped";
     await saveTask(home, task);

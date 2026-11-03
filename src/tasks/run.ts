@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { discardCandidate, invalidateResult } from "./artifact-state.js";
+import { recordStop } from "../monitoring/termination.js";
 import { requireEnvironmentReady } from "./readiness.js";
 import { readCredential } from "../config/credentials.js";
 import { requireRuntimeOwner } from "../environments/ownership.js";
@@ -32,15 +35,19 @@ export async function collectTask(home: string, task: Task): Promise<Task> {
   const current = await getTask(home, task.id);
   if (["stopped", "interrupted", "cleaned"].includes(current.state))
     throw new Error("任务已停止，不再收集");
-  task.deliveryPrepared = false;
+  invalidateResult(task);
+  task.resultGeneration = randomUUID();
   task.state = "collecting";
+  task.failureStage = "collection";
   await saveTask(home, task);
   const root = taskPath(home, task.id);
   const result = join(root, "result");
+  await discardCandidate(home, task);
+  await rm(join(root, "result.json"), { force: true });
   await rm(result, { recursive: true, force: true });
   if ((await taskProjectMode(home, task)) === "direct") {
     try {
-      await stopTaskResources(home, task);
+      await stopTaskResources(home, task, "collection");
       await validateDirectRuntime(home, task, dockerClient());
       await snapshot(task.projectRoot, result, [], MAX_EXPORT_FILE_BYTES);
     } catch (error) {
@@ -50,8 +57,13 @@ export async function collectTask(home: string, task: Task): Promise<Task> {
       throw error;
     }
   } else {
-    if (task.environmentId) await stopTaskResources(home, task);
-    await download(dockerClient(), task.containerId, result);
+    if (task.environmentId) await stopTaskResources(home, task, "collection");
+    await download(
+      dockerClient(),
+      task.containerId,
+      result,
+      task.config.resources,
+    );
   }
   const manifest = await scan(result);
   task.artifactDigest = manifestDigest(manifest);
@@ -65,6 +77,8 @@ export async function collectTask(home: string, task: Task): Promise<Task> {
     )
   )
     throw new Error("收集期间任务已停止");
+  delete task.failureStage;
+  delete task.error;
   task.state = "checking";
   await saveTask(home, task);
   return task;
@@ -90,6 +104,8 @@ async function runTaskLocked(
     ].includes(task.state)
   )
     throw new Error(`状态不允许运行: ${task.state}`);
+  invalidateResult(task);
+  await saveTask(home, task);
   const profile = profileSchema.parse(
     await readJson(join(taskPath(home, id), "profile.json")),
   );
@@ -104,13 +120,14 @@ async function runTaskLocked(
     await restartTaskRuntime(home, task, profile, "rework");
   // 保留本轮用户需求，附加可选入口说明，不改任务原始prompt记录。
   const guidance = await trafficGuidance(home, id);
-  const effectivePrompt = `${prompt ?? task.prompt}\n\n${guidance}`;
+  const effectivePrompt = `${prompt ?? task.prompt}\n\n${guidance}\n\n资源预算：容器内存上限 ${task.config.resources.memoryMiB} MiB。浏览器采集优先串行，复用浏览器并及时关闭页面；构建和截图采用有限并发。长任务按阶段保存产物、截图索引与进度，方便异常后续接。`;
   const spec = developmentAdapter(task.config.developmentAgent.type).launch(
     effectivePrompt,
     profile,
     key,
   );
   task.state = "running";
+  task.failureStage = "execution";
   task.round++;
   await saveTask(home, task);
   const audit = await startAudit(
@@ -131,7 +148,23 @@ async function runTaskLocked(
           task.config.lifecycle.taskTimeoutMinutes * 60000,
           task.config.resources.maxOutputBytes,
           [key],
+          (stop) => recordStop(home, task, "timeout", stop),
         );
+        await writeJson(join(taskPath(home, id), "telemetry/execution.json"), {
+          time: new Date().toISOString(),
+          round: task.round,
+          exitCode: result.exitCode,
+          reason:
+            result.exitCode === 137
+              ? "forced_termination_cause_unconfirmed"
+              : result.exitCode === 0
+                ? "completed"
+                : "nonzero_exit",
+          note:
+            result.exitCode === 137
+              ? "请结合停止记录、Docker事件及cgroup计数核对；不能仅凭137断言OOM"
+              : undefined,
+        });
         await writeFile(
           join(taskPath(home, id), `round-${task.round}.log`),
           result.output,
@@ -148,7 +181,7 @@ async function runTaskLocked(
         if (["stopped", "interrupted", "cleaned"].includes(current.state))
           throw error;
         task.state = "failed";
-        task.error = error instanceof Error ? error.message : String(error);
+        task.error = formatError(error);
         await saveTask(home, task);
         throw error;
       }
@@ -178,7 +211,7 @@ export async function runTask(home: string, id: string, prompt?: string) {
       ) {
         if (task.environmentId) {
           try {
-            await stopTaskResources(home, task);
+            await stopTaskResources(home, task, "failure");
           } catch (cleanup) {
             error = new AggregateError(
               [error, cleanup],

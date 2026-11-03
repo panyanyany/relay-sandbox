@@ -15,7 +15,7 @@ import { restartTaskRuntime } from "./restart.js";
 // 事后检查前停止整个任务的写入进程；返工仍可显式重新启动原开发容器。
 export async function prepareDirectProject(home: string, task: Task) {
   // 错误示范：先遍历目录再停止，遇到FIFO等异常会留下仍可写入的进程。
-  await stopTaskResources(home, task);
+  await stopTaskResources(home, task, "delivery");
   await validateDirectRuntime(home, task, dockerClient());
   const root = taskPath(home, task.id);
   const current = await snapshot(
@@ -38,7 +38,7 @@ export async function prepareDirectProject(home: string, task: Task) {
 // 错误示范：直接模式再调用applyChanges，会把事后检查误当成写入前屏障。
 export async function confirmDirectProject(home: string, task: Task) {
   // 错误示范：先遍历目录再停止，遇到FIFO等异常会留下仍可写入的进程。
-  await stopTaskResources(home, task);
+  await stopTaskResources(home, task, "delivery");
   await validateDirectRuntime(home, task, dockerClient());
   if (
     manifestDigest(await scan(task.projectRoot, [], MAX_EXPORT_FILE_BYTES)) !==

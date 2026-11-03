@@ -77,6 +77,13 @@ export const configSchema = z
         memoryMiB: z.number().int().min(64).default(4096),
         pids: z.number().int().min(16).default(256),
         maxOutputBytes: z.number().int().positive().default(1048576),
+        maxExportBytes: z
+          .number()
+          .int()
+          .positive()
+          .max(Number.MAX_SAFE_INTEGER)
+          .default(8589934592),
+        maxExportEntries: z.number().int().positive().default(200000),
       })
       .strict()
       .default({
@@ -84,10 +91,14 @@ export const configSchema = z
         memoryMiB: 4096,
         pids: 256,
         maxOutputBytes: 1048576,
+        maxExportBytes: 8589934592,
+        maxExportEntries: 200000,
       }),
     logging: z
       .object({
         sampleIntervalSeconds: z.number().int().min(1).max(60).default(10),
+        memoryWarningPercent: z.number().min(1).max(100).default(85),
+        memoryWarningSeconds: z.number().int().min(1).default(30),
         maxFileBytes: z.number().int().min(4096).default(1048576),
         maxFiles: z.number().int().min(1).max(100).default(5),
         retentionDays: z.number().positive().default(7),
@@ -95,6 +106,8 @@ export const configSchema = z
       .strict()
       .default({
         sampleIntervalSeconds: 10,
+        memoryWarningPercent: 85,
+        memoryWarningSeconds: 30,
         maxFileBytes: 1048576,
         maxFiles: 5,
         retentionDays: 7,

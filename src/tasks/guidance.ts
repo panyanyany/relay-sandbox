@@ -1,4 +1,4 @@
-import { environmentReady } from "./readiness.js";
+import { environmentReady, canRecollect } from "./readiness.js";
 import type { Task } from "./types.js";
 // 同名 checking 状态区分“开发已收集”和“最终候选已检查”，避免宿主无限等待。
 export function taskNextAction(task: Task): string {
@@ -6,6 +6,7 @@ export function taskNextAction(task: Task): string {
     return "wait_task";
   if (["preparing", "prepared"].includes(task.state))
     return environmentReady(task) ? "run_task" : "wait_task";
+  if (canRecollect(task)) return "collect_artifacts";
   if (task.state === "checking")
     return task.deliveryPrepared
       ? "read_artifact_then_review_task"

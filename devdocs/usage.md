@@ -201,3 +201,5 @@ docker build -f images/traffic.Dockerfile -t relay-sandbox-traffic:0.1.0 .
 ## 复用已安装的软件
 
 新任务默认使用项目持久环境，交付完成后停止并保留。`cleanup` 不删除持久环境；下一任务重新同步项目并借用同一容器。重置、TTL 和临时模式配置见[持久环境](persistent-environments.md)。旧任务没有环境编号时继续使用原任务级回收规则。
+
+收集阶段失败时，按[产物收集恢复](artifact-recovery.md)使用 `collect_artifacts` 或 `collect <任务ID>` 重试，不必再次运行开发模型。退出码 137 的证据与资源预警见[指标与清理](observability.md#预防并排查退出码-137)。

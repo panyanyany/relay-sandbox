@@ -27,6 +27,7 @@ const snapshot: Awaited<ReturnType<typeof snapshots.taskSnapshot>> = {
   task: {
     environmentReady: false,
     cancellationRequested: false,
+    resourceWarnings: [],
     id: "task",
     projectId: "project",
     projectRoot: "/unused",
@@ -202,20 +203,21 @@ test("连接断开立即释放监听器和待发送定时器", async () => {
 });
 
 // PREP-003：锁释放及取消标记属于快照事实，必须和task.json一样触发失效通知。
-test.each(["operation.lock", "preparation-cancel.json"])(
-  "%s变化触发任务资源通知",
-  async (filename) => {
-    const send = vi.fn(async () => {});
-    const registry = new TaskSubscriptions("/unused", send);
-    try {
-      await registry.subscribe(uri, "task");
-      const callback = vi.mocked(watch).mock.calls[0]![1];
-      if (typeof callback !== "function") throw new Error("缺少目录监听回调");
-      callback("rename", filename);
-      await vi.advanceTimersByTimeAsync(30);
-      expect(send).toHaveBeenCalledWith(uri);
-    } finally {
-      registry.close();
-    }
-  },
-);
+test.each([
+  "operation.lock",
+  "preparation-cancel.json",
+  "resource-pressure.json",
+])("%s变化触发任务资源通知", async (filename) => {
+  const send = vi.fn(async () => {});
+  const registry = new TaskSubscriptions("/unused", send);
+  try {
+    await registry.subscribe(uri, "task");
+    const callback = vi.mocked(watch).mock.calls[0]![1];
+    if (typeof callback !== "function") throw new Error("缺少目录监听回调");
+    callback("rename", filename);
+    await vi.advanceTimersByTimeAsync(30);
+    expect(send).toHaveBeenCalledWith(uri);
+  } finally {
+    registry.close();
+  }
+});

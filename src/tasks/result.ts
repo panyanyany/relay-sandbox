@@ -30,27 +30,34 @@ export async function taskResult(home: string, id: string) {
     task,
     nextAction: taskNextAction(task),
     artifactDirectory: root,
-    applicationPlan: plan
-      ? {
-          taskId: plan.taskId,
-          kind:
-            policy.projectMode === "direct"
-              ? "post_write_changes"
-              : "pending_changes",
-          artifactDigest: plan.artifactDigest,
-          configDigest: plan.configDigest,
-          changeCount: plan.changes.length,
-          changes: plan.changes.slice(0, 50),
-          truncated: plan.changes.length > 50,
-          detailTool: "get_delivery_plan",
-        }
-      : null,
+    applicationPlan:
+      plan &&
+      task.deliveryPrepared &&
+      plan.artifactDigest === task.artifactDigest &&
+      plan.configDigest === task.configDigest
+        ? {
+            taskId: plan.taskId,
+            kind:
+              policy.projectMode === "direct"
+                ? "post_write_changes"
+                : "pending_changes",
+            artifactDigest: plan.artifactDigest,
+            configDigest: plan.configDigest,
+            changeCount: plan.changes.length,
+            changes: plan.changes.slice(0, 50),
+            truncated: plan.changes.length > 50,
+            detailTool: "get_delivery_plan",
+          }
+        : null,
     changes: baseline && result ? changes(baseline, result) : [],
     audit: summarizeAudit(await loadAudit(home, id)),
     policy,
     monitoring: await telemetryStatus(home, id),
     reviewSchema: z.toJSONSchema(reviewSchema),
     reviewInstructions:
+      (taskNextAction(task) === "collect_artifacts"
+        ? "产物收集失败：先调用collect_artifacts并等待收集完成，再执行交付检查；重试收集不重跑开发Agent。异常收尾建议适用于放弃重试后。"
+        : "") +
       (policy.projectMode === "direct"
         ? "原项目已直接挂载：修改可能已生效。applicationPlan列出相对基线的事后变化；apply_task只确认检查结果，不回写或回滚。拒绝后仍须上报原项目可能已变更。"
         : "") +

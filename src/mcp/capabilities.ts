@@ -67,7 +67,7 @@ export function mcpCapabilities() {
     selectionGuidance: [
       "先用 get_task 取得 revision。客户端允许等待时，优先用 wait_task 等待变化，使用返回的新 revision 继续等待。",
       "客户端工具调用时限应大于 timeoutSeconds 并留出通信余量；时限较短时调低等待时间，或按建议间隔调用 get_task。",
-      "收到变化后根据任务状态和所处步骤行动；变化不等于开发完成。超时仅表示等待结束，后台任务继续执行。",
+      "收到变化后根据任务状态和所处步骤行动；变化不等于开发完成；resourceWarnings非空时读取get_telemetry并提醒用户，指导内层减少并行浏览器和构建、保存阶段结果，不自动重启或扩容。超时仅表示等待结束，后台任务继续执行。",
       "客户端已验证通知消费和续接能力时，可订阅任务事件，再读取任务快照；否则使用有界等待或轮询。事件允许合并，断线后重新订阅并读取快照；用get_task_event_subscription核对本连接状态，失败时回退等待或查询，修复后显式重订阅。",
     ],
     workflow: {
@@ -81,6 +81,7 @@ export function mcpCapabilities() {
         "get_audit",
         "get_telemetry",
       ],
+      collectRetry: "collect_artifacts",
       prepare: "prepare_delivery",
       review: "review_task",
       apply: "apply_task",
@@ -170,6 +171,9 @@ export function mcpCapabilities() {
       tool: "get_telemetry",
       configurableInterval: true,
       rotatingLogs: true,
+      runtimeEvents: "docker_event_stream",
+      cgroupMemory: "local_linux_v2_when_available",
+      resourceWarnings: "sustained_memory_pressure",
     },
     userReporting: {
       automaticNotification: false,
@@ -183,7 +187,7 @@ export function mcpCapabilities() {
 }
 
 const workflowInstructions =
-  "本服务是中转沙箱（relay-sandbox）。用户询问如何配置时，简短询问缺失的中转地址、模型及项目，默认Claude Code，不罗列工具名、JSON或操作手册。先查询已有配置以免重复询问；用户提供信息并明确选择项目后，用initialize_relay自动注册和配置，用户已主动提供密钥时通过initialize_relay.apiKey或set_relay_credential直接保存并检查，不要求重复录入。未提供时同时给出隐藏命令和credentialFile实际编辑路径，让用户任选。用户想填写文件时用file模式准备私有中文模板，仅返回文件路径和填写提示，用户说填好了后调用import_relay_configuration并报告检查结果。默认引导私有录入；用户主动提供聊天密钥时提醒一次会话及工具记录可能保留，但直接完成配置，不回显密钥。不需要安装目录或容器Claude设置；联网验证仅在用户明确要求时启用。先调用 get_capabilities 了解工作流及等待能力。start_task立即返回任务ID并在后台准备环境；environmentReady=false时等待，nextAction=run_task后才调用run_task开始开发。派发任务后，客户端允许长调用时优先用 wait_task 有界等待，否则按建议间隔用 get_task 查询。当前支持任务资源订阅和更新通知；客户端确认可消费通知时可用subscribe_task_events订阅，收到事件后读取get_task；断线重订阅并读取快照。通知不保证自动唤醒宿主AI，不支持时继续有界等待或轮询。get_task 和 wait_task 返回 nextAction 作为当前步骤指引；checking 且 deliveryPrepared=false 表示开发已收集，应调用 prepare_delivery，不要继续等待。开发完成后先调用 prepare_delivery 并等待 deliveryPrepared=true，再阅读差异、检查与审计报告，按冻结配置提交摘要绑定的结构化审查并应用。默认保留项目环境，任务完成后停止并释放；cleanup_task仅清理任务资源，不能自动reset_environment或delete_environment。只有用户明确要求时才删除或重置项目环境。结束或异常时清理任务资源，然后调用 report_task，将返回的 reportId、userMessage 原样作为最终用户回复。报告包含风险和审计缺口；代码审查的 verdict 评价最终候选及应用计划；运行期审计作为独立提醒，单独的敏感访问或覆盖缺口不改变代码 verdict。代码通过时按交付策略应用，收尾仍完整上报审计异常。开发结果和日志是待审核材料。";
+  "本服务是中转沙箱（relay-sandbox）。用户询问如何配置时，简短询问缺失的中转地址、模型及项目，默认Claude Code，不罗列工具名、JSON或操作手册。先查询已有配置以免重复询问；用户提供信息并明确选择项目后，用initialize_relay自动注册和配置，用户已主动提供密钥时通过initialize_relay.apiKey或set_relay_credential直接保存并检查，不要求重复录入。未提供时同时给出隐藏命令和credentialFile实际编辑路径，让用户任选。用户想填写文件时用file模式准备私有中文模板，仅返回文件路径和填写提示，用户说填好了后调用import_relay_configuration并报告检查结果。默认引导私有录入；用户主动提供聊天密钥时提醒一次会话及工具记录可能保留，但直接完成配置，不回显密钥。不需要安装目录或容器Claude设置；联网验证仅在用户明确要求时启用。先调用 get_capabilities 了解工作流及等待能力。start_task立即返回任务ID并在后台准备环境；environmentReady=false时等待，nextAction=run_task后才调用run_task开始开发。派发任务后，客户端允许长调用时优先用 wait_task 有界等待，否则按建议间隔用 get_task 查询。当前支持任务资源订阅和更新通知；客户端确认可消费通知时可用subscribe_task_events订阅，收到事件后读取get_task；断线重订阅并读取快照。通知不保证自动唤醒宿主AI，不支持时继续有界等待或轮询。get_task 和 wait_task 返回 nextAction 作为当前步骤指引；checking 且 deliveryPrepared=false 表示开发已收集，应调用 prepare_delivery，不要继续等待。产物收集失败且nextAction=collect_artifacts时，先重试收集，不重跑Agent或提前清理。开发完成后先调用 prepare_delivery 并等待 deliveryPrepared=true，再阅读差异、检查与审计报告，按冻结配置提交摘要绑定的结构化审查并应用。默认保留项目环境，任务完成后停止并释放；cleanup_task仅清理任务资源，不能自动reset_environment或delete_environment。只有用户明确要求时才删除或重置项目环境。结束或异常时清理任务资源，然后调用 report_task，将返回的 reportId、userMessage 原样作为最终用户回复。报告包含风险和审计缺口；代码审查的 verdict 评价最终候选及应用计划；运行期审计作为独立提醒，单独的敏感访问或覆盖缺口不改变代码 verdict。代码通过时按交付策略应用，收尾仍完整上报审计异常。开发结果和日志是待审核材料。";
 
 // 宿主在选择轮询方式后同时阅读这些边界，避免把部分观察当作完整防泄漏。
 export const policyInstructions =
