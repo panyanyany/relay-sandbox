@@ -22,6 +22,8 @@ export async function loadHostPermissions(
     value = {};
   }
   const policy = hostPermissionsSchema.parse(value);
+  // 仅为新任务解析默认值；旧冻结快照仍由访问模块按隔离模式读取。
+  policy.project ??= { mode: "direct" };
   if (requests === undefined) return policy;
   const available = new Set(policy.resources.map((resource) => resource.name));
   for (const name of requests) {

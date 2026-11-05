@@ -13,7 +13,7 @@ import { developmentAdapter } from "../../src/agents/development/adapters.js";
 test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
   "恢复与runTask返工对审计和网络故障采用相同策略",
   async () => {
-    const f = await policyFixture();
+    const f = await policyFixture({ projectMode: "isolated" });
     try {
       await f.permissions({ project: { mode: "direct" } });
       const task = await f.create();

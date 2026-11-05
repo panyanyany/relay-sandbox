@@ -22,6 +22,9 @@ export async function synchronizeWorkspace(
   reuse: boolean,
   delivered = false,
 ) {
+  // 直接挂载已共享原项目；保留创建阶段的审核基线，不维护隔离同步副本。
+  // 错误示范：直接模式仍重命名并复制基线，会重复搬运整个项目。
+  if (task.projectMode === "direct") return;
   const root = delivered
     ? join(taskPath(home, task.id), "delivery-sync")
     : taskPath(home, task.id);
@@ -32,9 +35,7 @@ export async function synchronizeWorkspace(
   if (delivered)
     await snapshot(task.projectRoot, host, task.config.project.exclude);
   else await rename(baseline, host);
-  if (task.projectMode === "direct") {
-    await cp(host, baseline, { recursive: true, verbatimSymlinks: true });
-  } else if (reuse) {
+  if (reuse) {
     const current = join(root, "environment-current");
     await download(
       dockerClient(),

@@ -12,7 +12,7 @@ import type { buildPolicySummary } from "../../src/reporting/policy-summary.js";
 test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
   "实际CLI/MCP默认网络、授权端口与未来任务隔离",
   async () => {
-    const fixture = await policyFixture(),
+    const fixture = await policyFixture({ projectMode: "isolated" }),
       docker = dockerClient(),
       id = randomUUID();
     const host = createServer((_req, res) => res.end("healthy-host"));
@@ -151,6 +151,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
         (await run(first.containerId!, `http://${secondIp}:18091`)).exitCode,
       ).not.toBe(0);
       await fixture.permissions({
+        project: { mode: "isolated" },
         network: {
           grants: [{ target: "198.19.0.0/16", ports: [port], protocol: "tcp" }],
         },
@@ -186,7 +187,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
 test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
   "真实入口资源副本、只读、可写及默认关闭清理",
   async () => {
-    const fixture = await policyFixture(),
+    const fixture = await policyFixture({ projectMode: "isolated" }),
       docker = dockerClient();
     const resources = [];
     for (const [name, mode, access] of [
@@ -207,7 +208,7 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
       });
     }
     try {
-      await fixture.permissions({ resources });
+      await fixture.permissions({ project: { mode: "isolated" }, resources });
       const task = await fixture.create();
       const run = (code: string) =>
         execute(docker, task.containerId!, ["sh", "-c", code], {}, 5000, 4096);
@@ -248,7 +249,10 @@ test.skipIf(process.env.RELAY_DOCKER_TEST !== "1")(
           filters: { label: [`relay-sandbox.task=${task.id}`] },
         }),
       ).toHaveLength(1);
-      await fixture.permissions({ resources: [] });
+      await fixture.permissions({
+        project: { mode: "isolated" },
+        resources: [],
+      });
       expect((await run("cat /resources/copy/data")).output).toBe("changed");
       await fixture.tool("cleanup_task", { id: task.id });
       const report = await fixture.tool<{

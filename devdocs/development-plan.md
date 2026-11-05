@@ -6,7 +6,7 @@
 
 ## 确定首版范围
 
-首版面向单用户 Linux 开发主机。用户仍在项目目录中使用可信接口的宿主 Agent（默认 Codex，可选 Claude Code、OpenCode），通过受限 CLI 或 MCP 委派任务。中转沙箱负责准备副本、运行内层 Agent、交付检查、应用结果、审计和清理。
+首版面向单用户 Linux 开发主机。用户仍在项目目录中使用可信接口的宿主 Agent（默认 Codex，可选 Claude Code、OpenCode），通过受限 CLI 或 MCP 委派任务。新任务默认直接挂载项目，可选隔离副本。中转沙箱负责准备工作区、运行内层 Agent、交付检查、应用结果、审计和清理。
 
 首版直接使用 Docker Engine API，不实现容器运行时，不开发模型工具循环，不引入 Kubernetes、远程调度、资源池或 Web 管理后台。后续若要求独立内核，重新评估 BoxLite；不把容器称为具有独立内核的虚拟机。
 

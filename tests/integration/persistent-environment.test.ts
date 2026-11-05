@@ -37,7 +37,10 @@ async function command(id: string, script: string) {
 dockerTest(
   "默认项目环境跨任务复用、停止、同步、旧任务清理与显式重置",
   async () => {
-    const f = await policyFixture({ persistent: true });
+    const f = await policyFixture({
+      persistent: true,
+      projectMode: "isolated",
+    });
     try {
       await writeFile(join(f.project, "code"), "original");
       const first = await f.create();
@@ -108,7 +111,10 @@ dockerTest(
 dockerTest(
   "同步冲突保留现场，授权改变必须重置，TTL只删除空闲环境",
   async () => {
-    const f = await policyFixture({ persistent: true });
+    const f = await policyFixture({
+      persistent: true,
+      projectMode: "isolated",
+    });
     try {
       await writeFile(join(f.project, "code"), "one\n");
       const first = await f.create();
@@ -197,7 +203,10 @@ dockerTest(
 dockerTest(
   "直接项目复用与历史诱饵观察边界",
   async () => {
-    const f = await policyFixture({ persistent: true });
+    const f = await policyFixture({
+      persistent: true,
+      projectMode: "isolated",
+    });
     try {
       await f.permissions({
         project: { mode: "direct" },
@@ -274,7 +283,7 @@ dockerTest(
 dockerTest(
   "显式临时模式交付后销毁容器，任务报告和结果仍可读取",
   async () => {
-    const f = await policyFixture();
+    const f = await policyFixture({ projectMode: "isolated" });
     try {
       const task = await f.create();
       expect(task.config.environment.mode).toBe("ephemeral");
@@ -300,12 +309,16 @@ dockerTest(
 dockerTest(
   "持久可写资源进入候选检查，检查写入不污染下轮环境",
   async () => {
-    const f = await policyFixture({ persistent: true });
+    const f = await policyFixture({
+      persistent: true,
+      projectMode: "isolated",
+    });
     try {
       const source = join(f.directory, "resource-source");
       await mkdir(source);
       await writeFile(join(source, "data"), "host");
       await f.permissions({
+        project: { mode: "isolated" },
         resources: [
           {
             name: "cache",
@@ -350,6 +363,59 @@ dockerTest(
         await command(second.containerId!, "cat /resources/cache/data"),
       ).toContain("developed");
       expect(await readFile(join(source, "data"), "utf8")).toBe("host");
+    } finally {
+      await f.finish();
+    }
+  },
+  120000,
+);
+
+// 不写权限文件和环境配置，验证产品实际的两个默认值组合。
+dockerTest(
+  "默认直接挂载的持久环境跨任务复用且不生成同步副本",
+  async () => {
+    const f = await policyFixture({ persistent: true });
+    try {
+      await writeFile(join(f.project, "code"), "original");
+      const first = await f.create();
+      expect(first.projectMode).toBe("direct");
+      expect(first.config.environment.mode).toBe("persistent");
+      await command(
+        first.containerId!,
+        "printf changed > code && mkdir -p /home/node/.local && printf retained > /home/node/.local/default-mode-test",
+      );
+      expect(await readFile(join(f.project, "code"), "utf8")).toBe("changed");
+      await collectTask(f.home, first);
+      await prepareDelivery(f.home, first.id);
+      await applyTask(f.home, first.id);
+      await writeFile(join(f.project, "host-new"), "host update");
+      const second = await f.create();
+      expect(second.containerId).toBe(first.containerId);
+      expect(second.projectMode).toBe("direct");
+      expect(
+        await command(
+          second.containerId!,
+          "cat host-new && cat /home/node/.local/default-mode-test",
+        ),
+      ).toContain("retained");
+      for (const task of [first, second]) {
+        expect(
+          await readFile(
+            join(f.home, "tasks", task.id, "baseline", "code"),
+            "utf8",
+          ),
+        ).toBe(task === first ? "original" : "changed");
+        await expect(
+          readFile(join(f.home, "tasks", task.id, "host-baseline", "code")),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      }
+      await expect(
+        readFile(
+          join(f.home, "environments", "project", "host-baseline", "code"),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await cleanupTask(f.home, second.id);
+      expect(await readFile(join(f.project, "code"), "utf8")).toBe("changed");
     } finally {
       await f.finish();
     }

@@ -6,7 +6,7 @@ import { expect, test } from "vitest";
 import { dockerClient } from "../../src/docker/client.js";
 import { execute } from "../../src/docker/execute.js";
 import { registerProject } from "../../src/projects/registry.js";
-import { createEphemeralTask as createTask } from "../helpers/ephemeral-task.js";
+import { createIsolatedEphemeralTask as createTask } from "../helpers/ephemeral-task.js";
 import { runTask } from "../../src/tasks/run.js";
 import { checkAndRepair } from "../../src/tasks/check-and-repair.js";
 import { prepareDelivery } from "../../src/tasks/prepare.js";

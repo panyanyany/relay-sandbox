@@ -76,7 +76,7 @@ audit:
 
 ## 选择原项目访问模式
 
-默认使用独立副本。需要立即修改原项目时，在宿主状态目录的 `permissions/<projectId>.yaml` 配置 `project: { mode: direct }` 后创建新任务。此模式不支持非空 `project.exclude`，审核拒绝不撤销已有修改；`apply_task` 只确认事后检查，不回写。权限、返工和报告字段见[项目访问方式](project-access.md)。
+新任务默认直接挂载并即时修改原项目。需要原先的独立副本时，在宿主状态目录的 `permissions/<projectId>.yaml` 配置 `project: { mode: isolated }` 后创建新任务。旧任务沿用冻结模式。直接模式不支持非空 `project.exclude`，审核拒绝不撤销已有修改；`apply_task` 只确认事后检查，不回写。权限、返工和报告字段见[项目访问方式](project-access.md)。
 
 ## 委派、审核和应用
 
@@ -89,7 +89,12 @@ node dist/src/cli/main.js result <任务ID>
 node dist/src/cli/main.js prepare <任务ID>
 ```
 
-`start` 默认在后台执行；`--wait` 等待本轮结束。`prepare` 三方合并当前原项目、初始基线及开发结果，生成 `candidate/` 和 `apply-plan.json`，在新的隔离容器中执行配置的检查，保留开发工作区。失败检查会触发有限返工；运行环境错误立即暂停。冲突返回路径清单，由宿主编辑任务目录的 `candidate/`；完成后运行 `check-candidate <任务ID>`，重新检查并生成最终应用计划。
+`start` 默认在后台执行；`--wait` 等待本轮结束。两种模式的交付步骤不同：
+
+- 直接模式（默认）：修改已写入原项目。`prepare` 停止任务进程，核对收集结果与原项目一致，再在独立候选容器中检查。需要返工时重新运行开发入口并收集，不通过编辑候选副本来回写原项目。`apply` 只确认结果仍与检查一致，不执行回写，也不自动回滚。
+- 隔离模式：`prepare` 三方合并当前原项目、初始基线及开发结果，生成 `candidate/` 和 `apply-plan.json`，在独立容器中检查。冲突返回路径清单，由宿主编辑 `candidate/`，再运行 `check-candidate <任务ID>` 重新检查并生成应用计划；`apply` 将通过检查的结果应用到原项目。
+
+失败检查会触发有限返工；运行环境错误立即暂停。两种模式均须按冻结配置完成检查和审核。
 
 宿主 Agent 阅读候选、差异和证据后提交结论。摘要从准备结果取得：
 

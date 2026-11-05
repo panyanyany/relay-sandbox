@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { expect, test } from "vitest";
+import { loadHostPermissions } from "../../src/permissions/load.js";
 import { configSchema } from "../../src/config/schema.js";
 import { saveTask, getTask } from "../../src/tasks/store.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -43,6 +44,14 @@ test("stdio MCP 可发现工具，不能注册任意宿主路径", async () => {
     expect(capability.configuration.userProvidedSecretsOnly).toBe(true);
     expect(capability.permissions.source).toBe("host_only");
     expect(capability.permissions.mutableDuringTask).toBe(false);
+    // 能力发现必须匹配实际默认值，不能把直接写入告知为隔离保护。
+    expect(capability.permissions.projectAccess.defaultMode).toBe("direct");
+    expect(capability.permissions.projectAccess.defaultMode).toBe(
+      (await loadHostPermissions(home, "fixture")).project?.mode,
+    );
+    expect(capability.permissions.projectAccess.legacySnapshotDefaultMode).toBe(
+      "isolated",
+    );
     expect(capability.network.externalIntranetDefault).toBe("allow");
     expect(capability.trafficAudit.defaultEnabled).toBe(false);
     expect(capability.trafficAudit.verifiedClients).toHaveLength(3);

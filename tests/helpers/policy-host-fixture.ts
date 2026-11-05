@@ -5,7 +5,7 @@ import { stringify } from "yaml";
 import { dockerClient } from "../../src/docker/client.js";
 import { execute } from "../../src/docker/execute.js";
 import { registerProject } from "../../src/projects/registry.js";
-import { createEphemeralTask as createTask } from "./ephemeral-task.js";
+import { createIsolatedEphemeralTask as createTask } from "./ephemeral-task.js";
 import { cleanupTask } from "../../src/tasks/cleanup.js";
 import { loadMainEnvironment } from "../../src/tasks/environment-state.js";
 import { refreshEnvironments } from "../../src/tasks/environment-lifecycle.js";

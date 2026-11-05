@@ -41,9 +41,9 @@ async function command(container: string, text: string) {
 
 // 真实宿主文件、Docker绑定挂载与MCP入口，不调用模型接口。
 dockerTest(
-  "默认任务仍隔离，直接任务即时写入、事后检查、收尾不回写或删原项目",
+  "显式隔离保留原项目，默认直接任务即时写入、事后检查、收尾不回写或删原项目",
   async () => {
-    const f = await policyFixture();
+    const f = await policyFixture({ projectMode: "isolated" });
     try {
       await writeFile(join(f.project, "value"), "original");
       const isolated = await f.create();
@@ -52,7 +52,7 @@ dockerTest(
       expect(await readFile(join(f.project, "value"), "utf8")).toBe("original");
       await f.tool("cleanup_task", { id: isolated.id });
 
-      await f.permissions({ project: { mode: "direct" } });
+      await rm(join(f.home, "permissions/project.yaml"));
       await writeFile(join(f.directory, "host-only"), "outside-project");
       await symlink(
         join(f.directory, "host-only"),
@@ -135,7 +135,7 @@ dockerTest(
 dockerTest(
   "直接模式拒绝过期确认，恢复和返工沿用冻结挂载",
   async () => {
-    const f = await policyFixture();
+    const f = await policyFixture({ projectMode: "isolated" });
     try {
       await f.permissions({
         project: { mode: "direct" },
@@ -190,7 +190,7 @@ dockerTest(
 dockerTest(
   "排除规则冲突拒绝创建，审核拒绝不撤销已有直接修改",
   async () => {
-    const f = await policyFixture();
+    const f = await policyFixture({ projectMode: "isolated" });
     try {
       await f.permissions({ project: { mode: "direct" } });
       await writeFile(
@@ -237,7 +237,7 @@ dockerTest(
 dockerTest(
   "直接项目校验失败前停止写入并持久化失败状态",
   async () => {
-    const f = await policyFixture();
+    const f = await policyFixture({ projectMode: "isolated" });
     try {
       await f.permissions({ project: { mode: "direct" } });
       const task = await f.create();

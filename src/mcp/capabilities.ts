@@ -126,7 +126,8 @@ export function mcpCapabilities() {
       projectRequests: "resource_names_only",
       extraDirectoriesDefault: "copy",
       projectAccess: {
-        defaultMode: "isolated",
+        defaultMode: "direct",
+        legacySnapshotDefaultMode: "isolated",
         modes: ["isolated", "direct"],
         setting: "project.mode",
         source: "host_permissions_only",
@@ -191,6 +192,6 @@ const workflowInstructions =
 
 // 宿主在选择轮询方式后同时阅读这些边界，避免把部分观察当作完整防泄漏。
 export const policyInstructions =
-  "宿主权限配置在创建时冻结，项目申请和MCP不能扩权。原项目project.mode默认isolated；宿主显式选择direct后立即写入原项目，检查是事后检查，apply_task只确认结果，审核拒绝不回滚。新任务默认允许外部内网，宿主及其他任务仍受隔离。get_result包含策略、直接可写影响及流量观察结果；直接可写目录可能在交付前改变宿主。诱饵默认关闭，启用后仅指定工具版本及显式helper调用可观察，任意Python和未知客户端不保证覆盖。内容审计故障保留通信并报告缺口；强制隔离失败需要停止，停止失败必须如实说明。命中只是敏感值匹配线索，不代表恶意或远端收到；零命中不能证明安全。监督器须由操作者独立运行以刷新代理存活状态。";
+  "宿主权限配置在创建时冻结，项目申请和MCP不能扩权。新任务原项目project.mode默认direct，立即写入原项目；宿主可选择isolated使用独立副本。旧任务沿用冻结模式。直接模式检查是事后检查，apply_task只确认结果，审核拒绝不回滚。新任务默认允许外部内网，宿主及其他任务仍受隔离。get_result包含策略、直接可写影响及流量观察结果；直接可写目录可能在交付前改变宿主。诱饵默认关闭，启用后仅指定工具版本及显式helper调用可观察，任意Python和未知客户端不保证覆盖。内容审计故障保留通信并报告缺口；强制隔离失败需要停止，停止失败必须如实说明。命中只是敏感值匹配线索，不代表恶意或远端收到；零命中不能证明安全。监督器须由操作者独立运行以刷新代理存活状态。";
 
 export const serverInstructions = workflowInstructions + policyInstructions;

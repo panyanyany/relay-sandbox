@@ -1,7 +1,19 @@
-import { mkdtemp, mkdir, rm, writeFile, symlink, link } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  rm,
+  writeFile,
+  symlink,
+  link,
+  stat,
+  readFile,
+  readdir,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
+import { synchronizeWorkspace } from "../../src/environments/workspace.js";
+import { taskPath, getTask } from "../../src/tasks/store.js";
 import { configSchema } from "../../src/config/schema.js";
 import { hostPermissionsSchema } from "../../src/permissions/schema.js";
 import { freezePolicy, policyDigest } from "../../src/permissions/freeze.js";
@@ -33,7 +45,7 @@ afterEach(async () => {
 });
 
 // 旧快照不补字段，避免升级后审核摘要失效；项目副本不能授权挂载原项目。
-test("默认隔离且旧冻结摘要不变，模式只接受宿主授权", async () => {
+test("旧任务保持隔离且冻结摘要不变，模式只接受宿主配置", async () => {
   const { home } = await fixture();
   const legacy = {
     version: 1,
@@ -178,4 +190,47 @@ test("直接模式被拒绝时报告原项目影响未知，不承诺阻止或�
   expect(report.userMessage).toContain("事后检查未通过");
   expect(report.userMessage).toContain("不会撤销");
   expect(report.userMessage).not.toContain("原项目：未由本任务应用修改");
+});
+
+// 保留初始审核证据；直接模式不建立任何隔离同步副本或触发容器传输。
+test("直接模式同步保留基线身份与内容，不生成共同基线", async () => {
+  const { home, project } = await fixture();
+  const task: Task = {
+    id: "direct-sync",
+    projectId: "project",
+    projectRoot: project,
+    projectMode: "direct",
+    prompt: "fixture",
+    config: configSchema.parse({}),
+    configDigest: "c",
+    state: "prepared",
+    createdAt: "",
+    updatedAt: "",
+    round: 0,
+    checks: [],
+    warnings: [],
+  };
+  await saveTask(home, task);
+  const root = taskPath(home, task.id),
+    baseline = join(root, "baseline");
+  await mkdir(baseline);
+  await writeFile(join(baseline, "code"), "immutable evidence");
+  const before = await stat(baseline);
+  for (const reuse of [false, true])
+    await synchronizeWorkspace(home, task, reuse);
+  await synchronizeWorkspace(home, task, true, true);
+  expect((await stat(baseline)).ino).toBe(before.ino);
+  expect(await readFile(join(baseline, "code"), "utf8")).toBe(
+    "immutable evidence",
+  );
+  expect(await readdir(root)).toEqual(
+    expect.arrayContaining(["baseline", "task.json"]),
+  );
+  for (const path of [
+    join(root, "host-baseline"),
+    join(root, "delivery-sync"),
+    join(home, "environments", "project", "host-baseline"),
+  ])
+    await expect(stat(path)).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await getTask(home, task.id)).state).toBe("prepared");
 });

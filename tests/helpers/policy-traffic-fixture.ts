@@ -13,7 +13,7 @@ import {
 
 // 自有TLS服务和CA只存在于临时夹具；产品不提供放宽上游TLS验证的开关。
 export async function policyTrafficFixture() {
-  const fixture = await policyFixture(),
+  const fixture = await policyFixture({ projectMode: "isolated" }),
     docker = dockerClient();
   try {
     const directory = join(fixture.directory, "tls");
@@ -42,6 +42,7 @@ export async function policyTrafficFixture() {
         { maxBuffer: 65536 },
       );
     await fixture.permissions({
+      project: { mode: "isolated" },
       decoys: { enabled: true, clients: VERIFIED_CLIENTS },
     });
     const task = await fixture.create();

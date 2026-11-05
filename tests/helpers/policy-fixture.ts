@@ -13,7 +13,9 @@ import { dockerClient } from "../../src/docker/client.js";
 import type { Task } from "../../src/tasks/types.js";
 
 // 使用实际CLI登记项目，实际stdio MCP创建/查询/清理，不连接真实模型接口。
-export async function policyFixture(options: { persistent?: boolean } = {}) {
+export async function policyFixture(
+  options: { persistent?: boolean; projectMode?: "isolated" | "direct" } = {},
+) {
   const directory = await mkdtemp(join(tmpdir(), "relay-policy-flow-"));
   const home = join(directory, "state"),
     project = join(directory, "project");
@@ -68,6 +70,12 @@ export async function policyFixture(options: { persistent?: boolean } = {}) {
     join(home, "services/web.yaml"),
     stringify({ image, argv: ["python3", "-m", "http.server", "18091"] }),
   );
+  // 只有调用者显式选择模式才写宿主配置，否则测试产品的真实默认值。
+  if (options.projectMode)
+    await writeFile(
+      join(home, "permissions/project.yaml"),
+      stringify({ project: { mode: options.projectMode } }),
+    );
   await cli("register", "project", project);
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -104,7 +112,7 @@ export async function policyFixture(options: { persistent?: boolean } = {}) {
     image,
     tool,
     cli,
-    async permissions(value: unknown) {
+    async permissions(value: Record<string, unknown>) {
       await writeFile(join(home, "permissions/project.yaml"), stringify(value));
     },
     async create() {

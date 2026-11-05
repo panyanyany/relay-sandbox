@@ -130,7 +130,7 @@ relay-sandbox/
 │   ├── task-events.md          # 任务资源订阅及宿主续接边界
 │   ├── relay-setup.md          # MCP中转配置与本机隐藏凭据录入
 │   ├── maintenance.md          # 维护修复契约、错误示范及回归验证
-│   ├── project-access.md       # 默认隔离、宿主直接挂载与事后检查
+│   ├── project-access.md       # 默认直接挂载、可选隔离副本与事后检查
 │   └── traffic-correlation.md  # 诱饵命中关联、进程声明及证据边界
 └── references/                 # 可公开外部方案及资料
 ```

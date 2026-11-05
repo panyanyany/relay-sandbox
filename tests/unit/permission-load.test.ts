@@ -143,3 +143,29 @@ test("冻结快照容量边界统一，已有超限快照仍可恢复读取", as
     expect.arrayContaining(["policy-record-oversized"]),
   );
 });
+
+// 新默认只在宿主配置加载时补齐，既有冻结策略和显式隔离不变。
+test("新任务默认直接挂载，显式隔离与旧快照保持原语义", async () => {
+  const root = await home();
+  const initial = await loadHostPermissions(root, "project");
+  expect(initial.project?.mode).toBe("direct");
+  const frozen = await freezePolicy(root, "new-task", initial);
+  expect(frozen.project?.mode).toBe("direct");
+  await writeFile(
+    join(root, "permissions/project.yaml"),
+    "network: {grants: []}\n",
+  );
+  expect((await loadHostPermissions(root, "project")).project?.mode).toBe(
+    "direct",
+  );
+  await writeFile(
+    join(root, "permissions/project.yaml"),
+    "project: {mode: isolated}\n",
+  );
+  expect((await loadHostPermissions(root, "project")).project?.mode).toBe(
+    "isolated",
+  );
+  expect((await readFrozenPolicy(root, "new-task"))?.project?.mode).toBe(
+    "direct",
+  );
+});
