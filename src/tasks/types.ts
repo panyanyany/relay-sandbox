@@ -24,6 +24,8 @@ export interface CheckResult {
   output: string;
 }
 export interface Task {
+  /** 独立终端会话归属，仅用于停止本会话派生任务。 */
+  terminalSessionId?: string;
   id: string;
   projectId: string;
   projectRoot: string;

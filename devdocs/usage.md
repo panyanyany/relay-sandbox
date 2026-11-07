@@ -78,6 +78,10 @@ audit:
 
 新任务默认直接挂载并即时修改原项目。需要原先的独立副本时，在宿主状态目录的 `permissions/<projectId>.yaml` 配置 `project: { mode: isolated }` 后创建新任务。旧任务沿用冻结模式。直接模式不支持非空 `project.exclude`，审核拒绝不撤销已有修改；`apply_task` 只确认事后检查，不回写。权限、返工和报告字段见[项目访问方式](project-access.md)。
 
+## 独立逐行终端
+
+已注册项目可运行 `relay` 或 `relay-sandbox --cwd /path/to/project`，以逐行输入与容器开发 Agent 对话。`--session <UUID>` 继续同一会话，网页使用同一 CLI、结构化请求和外部 UUID。打开、空输入或只读查看不创建正式会话；首个有效消息或技能请求可靠保存后才派发。此模式不运行宿主协调 AI，审计持续采集，AI 审查由 `review <会话UUID>` 显式触发。宿主审查 Agent、独立凭据、固定材料补审及停止边界见[独立终端](terminal.md)。原有 MCP 委派和任务交付流程不变。统一输入已完成定向与本机假接口验证；真实产品终验、三种 Agent 的专用真实模型配置及独立审查验收尚未完成，尚未发布。
+
 ## 委派、审核和应用
 
 ```sh

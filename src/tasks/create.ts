@@ -51,6 +51,9 @@ export async function reserveTask(
     id,
     projectId,
     projectRoot,
+    ...(process.env.RELAY_TERMINAL_SESSION_ID
+      ? { terminalSessionId: process.env.RELAY_TERMINAL_SESSION_ID }
+      : {}),
     prompt,
     config,
     configDigest: configDigest(config),

@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { registerReviewCommand } from "./review-command.js";
+import { registerSessionCommands } from "./session-commands.js";
+import { registerChatCommand } from "../terminal/command.js";
 import { recollectTask } from "../tasks/recollect.js";
 import { registerCredentialCommands } from "./credentials.js";
 import { readEnvironment } from "../environments/store.js";
@@ -16,7 +19,7 @@ import { createTask, prepareTask } from "../tasks/create.js";
 import { getTask, taskPath, listTasks } from "../tasks/store.js";
 import { runTask } from "../tasks/run.js";
 import { checkAndRepair } from "../tasks/check-and-repair.js";
-import { reviewTask, applyTask } from "../tasks/deliver.js";
+import { applyTask } from "../tasks/deliver.js";
 import { cleanupTask, stopTask } from "../tasks/cleanup.js";
 import { dockerClient } from "../docker/client.js";
 import { redact, formatError } from "../audit/redaction.js";
@@ -49,6 +52,9 @@ const program = new Command()
   );
 const home = (): string => resolve(program.opts<{ home: string }>().home);
 registerCredentialCommands(program, home);
+registerChatCommand(program, home);
+registerReviewCommand(program, home);
+registerSessionCommands(program, home);
 const show = (value: unknown): void => {
   console.log(redact(JSON.stringify(value, null, 2)));
 };
@@ -186,15 +192,6 @@ program
   .command("check-candidate <id>")
   .description("检查宿主已解决冲突的候选")
   .action(async (id: string) => show(await acceptCandidate(home(), id)));
-program
-  .command("review <id>")
-  .requiredOption("--file <path>", "结构化审核 JSON 文件")
-  .action(async (id: string, options: { file: string }) => {
-    const decision: unknown = JSON.parse(
-      await readFile(resolve(options.file), "utf8"),
-    );
-    show(await reviewTask(home(), id, decision));
-  });
 program
   .command("report <id>")
   .description("生成用户上报内容；不等于用户已收到")

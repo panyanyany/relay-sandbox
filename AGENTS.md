@@ -52,8 +52,22 @@
 | [行为策略](devdocs/behavior-policy.md) | 宿主授权、冻结网络例外、目录模式、默认关闭诱饵、显式工具与覆盖边界 |
 | [中转配置](devdocs/relay-setup.md) | 对话初始化、私有文件模板与导入、目录授权与项目元数据、完整操作锁、凭据隔离与覆盖提示、主动提供密钥直配、文件与隐藏录入任选、模板基线冲突及分阶段配置检查 |
 | [任务事件](devdocs/task-events.md) | MCP 资源订阅、并发初始化、订阅健康查询、故障诊断、断线清理、后台环境准备与恢复、取消与清理互斥、租约交接及派发失败定位与宿主续接边界 |
+| [终端直连 PRD](.rope/issues/direct-terminal/prd.md) | 当前统一逐行输入、原生上下文与独立审查契约、架构约束及授权范围 |
+| [统一输入实施任务](.rope/issues/direct-terminal/unified-input-tasks.md) | D21–D25、36实施单元23波次；U01–U25完成，全量检查与代码审核通过，U26因真实模型配置缺失阻塞发布 |
+| [原生终端历史PRD](.rope/issues/direct-terminal/prd-native-history.md) | 已替代的原生界面合同原文；旧失败及架构演进依据 |
+| [终端生命周期修订任务](.rope/issues/direct-terminal/revision-tasks.md) | 历史R01准入失败与R02–R16计划；已改统一输入方向，不直接续跑 |
+| [终端直连任务](.rope/issues/direct-terminal/tasks.md) | 历史S轮25片与审核进度；旧原生冷Codex入口及恢复失败，不作为当前统一输入验收 |
+| [终端直连真实验收](.rope/issues/direct-terminal/e2e.md) | 保留原生失败历史；统一输入G0跨入口、恢复及技能通过，真实模型与独立审查缺专用配置，未发布 |
+| [终端原生能力](.rope/issues/direct-terminal/capabilities.md) | 实际CLI与假中转的跨模式、准入及断连证据；不等同完整产品验收 |
+| [终端直连审核](.rope/issues/direct-terminal/review.md) | 统一输入代码双审通过、三项第1轮修复及实际复验；产品真实模型验收阻塞 |
+| [终端直连实现定位](.rope/issues/direct-terminal/map.md) | 当前逐行入口、先保存后执行、结构化厂商适配、恢复及清理边界 |
+| [终端直连切片提纲](.rope/issues/direct-terminal/slice-outline.md) | 历史S/R切片及统一输入提纲；当前预算拆片和进度以统一输入实施任务为准 |
+| [终端直连需求对齐](.rope/issues/direct-terminal/grill-decisions.md) | D1–D25及历史决定；当前交付摘要已确认，U01–U25完成，发布状态以实施任务及verify为准 |
+| [终端直连核对](.rope/issues/direct-terminal/verify.md) | 旧原生失败保留；统一输入Round 2 BLOCKED，真实模型专用配置缺失，未发布 |
+| [终端维护边界](devdocs/terminal-maintenance.md) | 请求与后端故障分离、取消观察、统一等待预算及停止失败后的退出监测 |
+| [独立终端](devdocs/terminal.md) | 逐行开发终端、统一请求与会话、原生技能、显式独立审查、JSONL和Webcoding接入 |
 | [运行说明](devdocs/usage.md) | 安装构建、模型档案、CLI/MCP 能力发现、有界等待、交付、服务、真实模型测试、部分审计及限制 |
-| [实现验证记录](devdocs/implementation-validation.md) | 实际测试、三种开发 Agent 联调、Codex 宿主上报、指标崩溃留证、维护性修复回归、诱饵调用关联、项目访问模式、REV-001–REV-005 回归、持久环境验收、PENV-001–PENV-004 修复回归、任务事件验证、EVT-001–EVT-003 回归、中转配置闭环、首次配置与项目元数据、SETUP-001–SETUP-006 修复回归、主动密钥直配与双录入入口、CRED-001–CRED-004 修复、后台环境准备与真实Docker就绪验收、137 留证与内存压力、硬链接导出及产物重收集、MAINT-001–MAINT-004 修复验证、中断恢复三方同步、RSYNC 修复、默认直接挂载、MOUNT-001–MOUNT-004 修复与剩余验收 |
+| [实现验证记录](devdocs/implementation-validation.md) | 实际测试、三种开发 Agent 联调、Codex 宿主上报、指标崩溃留证、维护性修复回归、诱饵调用关联、项目访问模式、REV-001–REV-005 回归、持久环境验收、PENV-001–PENV-004 修复回归、任务事件验证、EVT-001–EVT-003 回归、中转配置闭环、首次配置与项目元数据、SETUP-001–SETUP-006 修复回归、主动密钥直配与双录入入口、CRED-001–CRED-004 修复、后台环境准备与真实Docker就绪验收、137 留证与内存压力、硬链接导出及产物重收集、MAINT-001–MAINT-004 修复验证、中断恢复三方同步、RSYNC 修复、默认直接挂载、MOUNT-001–MOUNT-004 修复与剩余验收、独立终端及 Webcoding 协议联调、原生失败历史、统一逐行输入和三CLI假接口验证；全量与代码双审通过，记录范围G0通过，真实模型缺配置、0调用，未发布 |
 | [持久环境](devdocs/persistent-environments.md) | 项目环境默认保留、跨任务与中断恢复三方同步、无 Git 项目、独立检查点、有效交付基线、无变化轻量同步、直接挂载跳过冗余副本与写入失败保护、TTL、资源检查快照、审计降级、错误链及显式重置删除 |
 | [项目访问方式](devdocs/project-access.md) | 默认直接挂载、可选隔离副本、停止后检查、采集限制与恢复清理 |
 | [调用关联](devdocs/traffic-correlation.md) | 显式入口进程声明、调用与请求编号、内部头剥离、功能就绪探针、证据边界及真实验收 |

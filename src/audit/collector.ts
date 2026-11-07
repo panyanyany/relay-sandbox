@@ -8,6 +8,7 @@ import type { AuditEvent, AuditReport } from "./report.js";
 
 export interface AuditSession {
   finish(): Promise<AuditReport>;
+  snapshot?(): Promise<AuditReport>;
 }
 const gaps = [
   "覆盖 open/openat、unlink/unlinkat、rename 系列；不覆盖所有系统调用、继承文件描述符及 mmap",
@@ -60,6 +61,24 @@ export async function startAudit(
   let processHandle: ReturnType<typeof spawn> | undefined;
   let closed: Promise<number | null> | undefined;
   let writes = Promise.resolve();
+  let exited = false;
+  let stopping = false;
+  // 快照等待已接收事件落盘，但保持采集器运行。
+  async function snapshot(
+    coverage: AuditReport["coverage"],
+  ): Promise<AuditReport> {
+    await writes;
+    if (exited && !stopping)
+      recordFailure("采集器已异常退出，后续行为存在覆盖缺口");
+    return {
+      coverage,
+      gaps: [...gaps, ...failures],
+      events: structuredClone(events),
+      warnings: events
+        .map((event) => `${event.target}: ${event.action} ${event.result}`)
+        .concat("审计覆盖不完整，请阅读 gaps"),
+    };
+  }
   try {
     const info = await docker.getContainer(containerId).inspect();
     const membership = await readFile(`/proc/${info.State.Pid}/cgroup`, "utf8");
@@ -85,7 +104,10 @@ export async function startAudit(
     processHandle = child;
     closed = new Promise((resolve, reject) => {
       child.on("error", reject);
-      child.on("close", resolve);
+      child.on("close", (code) => {
+        exited = true;
+        resolve(code);
+      });
     });
     let buffer = "",
       stderr = "",
@@ -181,32 +203,19 @@ export async function startAudit(
         recordFailure(String(error));
       });
     return {
-      finish: async () => ({
-        coverage: "unavailable",
-        gaps: [...gaps, ...failures],
-        events,
-        warnings: ["内层审计不可用，不能据此判断没有敏感行为"],
-      }),
+      snapshot: () => snapshot("unavailable"),
+      finish: () => snapshot("unavailable"),
     };
   }
+
   return {
+    snapshot: () => snapshot("partial"),
     finish: async () => {
+      stopping = true;
       processHandle!.kill("SIGINT");
       const code = await closed!;
       if (code !== 0) recordFailure(`采集器退出码 ${code}`);
-      try {
-        await writes;
-      } catch (error) {
-        recordFailure(`证据保存失败: ${String(error)}`);
-      }
-      return {
-        coverage: "partial",
-        gaps: [...gaps, ...new Set(failures)],
-        events,
-        warnings: events
-          .map((event) => `${event.target}: ${event.action} ${event.result}`)
-          .concat("审计覆盖不完整，请阅读 gaps"),
-      };
+      return snapshot("partial");
     },
   };
 }

@@ -17,6 +17,19 @@ import {
 } from "../resources/prepare.js";
 import { taskPath } from "./store.js";
 
+// 准备与事后审查共用冻结摘要契约，不能只计算项目配置而遗漏授权。
+export function environmentConfigDigest(
+  config: Config,
+  policy: FrozenPolicy,
+): string {
+  return digest(
+    JSON.stringify({
+      project: projectDigest(config),
+      policy: policyDigest(policy),
+    }),
+  );
+}
+
 // 先复用可信冻结记录；修改宿主授权不能改变已有任务，也不能改变审核摘要。
 export async function freezeEnvironment(
   home: string,
@@ -38,12 +51,7 @@ export async function freezeEnvironment(
     ));
   return {
     policy,
-    configDigest: digest(
-      JSON.stringify({
-        project: projectDigest(config),
-        policy: policyDigest(policy),
-      }),
-    ),
+    configDigest: environmentConfigDigest(config, policy),
   };
 }
 

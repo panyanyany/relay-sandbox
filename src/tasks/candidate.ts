@@ -1,12 +1,9 @@
 import { requireWorkspaceUsable } from "./readiness.js";
 import { requireCurrentCandidate } from "./artifact-state.js";
-import type Docker from "dockerode";
 import { readFrozenPolicy } from "../permissions/freeze.js";
-import { stopEnvironment } from "./environment-lifecycle.js";
 import { prepareCheckResources } from "./check-resources.js";
 import { installEnvironment } from "./environment-install.js";
 import { type EnvironmentState } from "./environment-state.js";
-import type { RuntimeHandle } from "../docker/runtime.js";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { scan, manifestDigest } from "../workspace/manifest.js";
@@ -16,7 +13,7 @@ import { withFinalizer } from "../storage/finalize.js";
 import { makePlan } from "../delivery/apply.js";
 import { runChecks } from "../delivery/checks.js";
 import { isReady } from "../delivery/policy.js";
-import { createRuntime, removeRuntime } from "../docker/runtime.js";
+import { createRuntime } from "../docker/runtime.js";
 import { upload } from "../docker/archive.js";
 import { dockerClient } from "../docker/client.js";
 import { getTask, saveTask, taskPath } from "./store.js";
@@ -24,29 +21,7 @@ import { withTaskLock } from "./lock.js";
 import type { Task } from "./types.js";
 import { taskProjectMode } from "../workspace/access.js";
 import type { Manifest } from "../workspace/manifest.js";
-// 各收尾独立尝试，保留代理证据；一个失败不能跳过其他运行资源的回收。
-async function finishCheck(
-  home: string,
-  taskId: string,
-  docker: Docker,
-  runtime: RuntimeHandle,
-  environment?: EnvironmentState,
-) {
-  const failures: unknown[] = [];
-  if (environment) {
-    try {
-      await stopEnvironment(docker, home, taskId, environment);
-    } catch (error) {
-      failures.push(error);
-    }
-  }
-  try {
-    await removeRuntime(docker, runtime);
-  } catch (error) {
-    failures.push(error);
-  }
-  if (failures.length) throw new AggregateError(failures, "检查环境收尾不完整");
-}
+import { finishCheck } from "./check-runtime.js";
 // 宿主解决冲突后复用同一检查入口，不重新生成候选而覆盖宿主修复。
 export async function verifyCandidate(home: string, task: Task) {
   requireCurrentCandidate(task);

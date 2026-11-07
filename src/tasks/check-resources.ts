@@ -17,28 +17,42 @@ export async function prepareCheckResources(
   home: string,
   task: Task,
   policy: FrozenPolicy | undefined,
+  input: { requirePaused?: boolean } = {},
 ): Promise<RuntimeOptions> {
-  if (!task.environmentId || !policy)
-    return prepareEnvironment(home, task, policy, true);
-  await requireRuntimeOwner(home, task);
-  if (!task.containerId) throw new Error("持久环境缺少容器标识");
-  if (
-    (await dockerClient().getContainer(task.containerId).inspect()).State
-      .Running
-  )
-    throw new Error("检查前必须停止持久开发环境，避免资源在冻结时变化");
+  if (input.requirePaused) {
+    await requireRuntimeOwner(home, task);
+    if (!task.containerId) throw new Error("审查检查缺少开发容器");
+    const state = (
+      await dockerClient().getContainer(task.containerId).inspect()
+    ).State;
+    if (!state.Paused)
+      throw new Error("审查检查前必须暂停开发容器，停止不能代替冻结");
+  } else {
+    if (!task.environmentId || !policy)
+      return prepareEnvironment(home, task, policy, true);
+    await requireRuntimeOwner(home, task);
+    if (!task.containerId) throw new Error("持久环境缺少容器标识");
+    if (
+      (await dockerClient().getContainer(task.containerId).inspect()).State
+        .Running
+    )
+      throw new Error("检查前必须停止持久开发环境，避免资源在冻结时变化");
+  }
+  if (!policy) return {};
+  const resourceRoot = task.environmentId
+    ? join(environmentPath(home, task.projectId), "resources")
+    : join(taskPath(home, task.id), "resources");
   const options = await prepareEnvironment(
     home,
     task,
     policy,
     true,
-    join(environmentPath(home, task.projectId), "resources"),
+    resourceRoot,
   );
-  const actual = await loadPreparedResources(
-    policy.resources,
-    join(environmentPath(home, task.projectId), "resources"),
-    [home, task.projectRoot],
-  );
+  const actual = await loadPreparedResources(policy.resources, resourceRoot, [
+    home,
+    task.projectRoot,
+  ]);
   const destination = join(taskPath(home, task.id), "check-resources");
   await rm(destination, { recursive: true, force: true });
   // 错误示范：使用宿主重新复制的任务资源会让检查读到与开发不同的内容。

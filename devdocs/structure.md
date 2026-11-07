@@ -125,6 +125,7 @@ relay-sandbox/
 │   ├── helpers/               # 真实宿主 CLI 会话与输出捕获
 │   └── fixtures/               # 假凭据协议服务，不调用真实计费 API
 ├── devdocs/                    # 功能说明、需求、方案与验证范围
+│   └── terminal-maintenance.md # 终端故障分类、取消等待与停止监测
 │   ├── artifact-recovery.md    # 产物硬链接导出与失败重收集
 │   ├── persistent-environments.md # 默认保留、同步及环境生命周期
 │   ├── task-events.md          # 任务资源订阅及宿主续接边界
@@ -144,3 +145,93 @@ relay-sandbox/
 `.rope/routes.md` 保存已确认的host-managed共享模式，不执行Git操作。`.rope/issues/behavior-policy/` 保存完整需求包：`grill-decisions.md` 为确认台账，`prd.md` 为需求和架构约束，`tasks.md` 为小切片/矩阵/进度，`e2e.md` 为实际入口验收，`review.md` 为独立审核记录。状态按这些文件的当前记录判断。
 
 `devdocs/behavior-policy.md` 提供宿主授权、网络、资源和可选诱饵配置。`references/traffic-audit.md` 保存外部证据范围。私密原值、基线和实测过程保存在忽略的 `.local/`，不得作为公开报告正文。
+
+## 独立终端模块
+
+```text
+src/terminal/
+├── command.ts                # 默认逐行入口与 JSONL 命令装配
+├── line-input.ts             # 逐行读取及共享命令校验
+├── line-output.ts            # 真实事件呈现与完整消息去重
+├── line-session.ts           # 复用共享 JSONL 的多轮输入和观察
+└── session.ts                # V2 开发身份和旧 V1 元数据兼容
+src/sessions/
+├── schema.ts                 # 固定项目、Agent 和原生会话身份
+├── startup-context.ts        # 授权项目只读启动及专属资源登记
+├── startup-close.ts          # 只清理当前入口登记的资源
+├── activation.ts             # 首请求和正式身份原子保存
+├── requests.ts / commands.ts # 结构化请求校验与统一命令路由
+├── capabilities.ts           # 技能发现与执行的独立能力契约
+├── environment.ts            # 正式身份保存后的环境准备
+├── profile.ts                # 冻结开发档案及最小环境
+├── operation.ts / state.ts   # 原子准入、状态和待审版本
+├── backend-lifecycle.ts      # Docker退出事件与持久中断传播
+├── worker.ts / worker-api.ts # 独占后台、私有控制 RPC和逐请求保存
+├── dispatch.ts               # 后台派发与 PID 就绪核对
+├── runtime.ts / runtime-driver.ts # 审计、结构化Agent、审查和停止装配
+├── readiness.ts              # 原生上下文与实际后台就绪核对
+├── events.ts / event-store.ts # 真实语义事件、游标和轮转缺口
+├── audit.ts / evidence-index.ts # 连续审计及证据索引
+├── json-command.ts / json-protocol.ts # 终端和网页共用请求、事件及错误阶段
+├── stop.ts / stop-intent.ts   # 显式停止意图及协调边界
+├── recovery.ts               # 旧进程死亡证明与同上下文恢复
+└── review/
+    ├── evidence.ts / snapshot.ts # 全任务冻结及固定代码日志
+    ├── config.ts / cli.ts       # 独立可信配置与受限审查 CLI
+    ├── executor.ts              # 代码与行为两轴严格结果
+    ├── checks.ts / check-facts.ts # 隔离检查和固定检查事实
+    └── report.ts / state.ts     # 报告、固定补审及待审查询
+src/agents/sessions/
+├── contract.ts               # 原生启动与协议消息适配契约
+├── codex-driver.ts / codex-gateway.ts # app-server上下文及轮次控制
+├── codex-rpc.ts / codex-skills.ts # RPC生命周期与原生技能输入
+├── claude-driver.ts / claude-code.ts # print结构化执行与真实消息解析
+├── claude-readiness.ts / claude-skills.ts # 无提示词就绪及实际初始化技能
+├── opencode-driver.ts / opencode-bridge.ts # serve请求、同ID恢复和结果校验
+└── opencode-skills.ts        # 原生技能列表及不支持调用的明确结果
+src/docker/interactive.ts    # TTY、stdio、resize 和真实退出码
+src/cli/session-commands.ts  # 内部 worker、状态、事件、停止与恢复
+src/cli/review-command.ts    # 会话审查和旧任务 --file 语义分流
+src/tasks/check-runtime.ts   # 旧交付与独立审查共用检查环境收尾
+tests/unit/session-*.test.ts # 会话各层及失败边界回归
+tests/unit/terminal-*.test.ts # 逐行输入、共享JSONL和实际 CLI 协议回归
+```
+
+独立终端直连需求对齐台账：`.rope/issues/direct-terminal/grill-decisions.md`。需求已确认；实现状态见正式任务包。
+
+终端直连 shape 记录：`.rope/issues/direct-terminal/map.md` 保存带日期的代码事实；`slice-outline.md` 保存已确认切片和依赖图，正式执行包见下方。
+
+当前统一输入正式任务包（U01–U23已实施，产品终验与发布待完成；旧原生失败保留为历史）：
+
+```text
+.rope/issues/direct-terminal/
+├── grill-decisions.md # D1–D25 已确认需求及共享理解
+├── map.md             # 带日期的代码事实与边界
+├── capabilities.md    # 实际CLI结构化及历史原生探针结果与限制
+├── slice-outline.md   # 已确认的切片提纲
+├── prd.md             # 当前统一输入交付摘要、架构约束与授权
+├── prd-native-history.md # 已替代原生界面合同原文
+├── tasks.md           # 首轮25片、17波次及历史审核进度
+├── revision-tasks.md  # 原生生命周期修订历史及R01失败
+├── unified-input-tasks.md # 统一输入36实施单元、23波次及审核进度
+├── e2e.md             # UE真实验收与旧原生终态及未覆盖范围
+├── review.md          # 双审裁定、两轮修复与升级记录
+└── verify.md          # 文档核对BLOCKED及后续阻塞
+```
+
+任务包同时记录实施和剩余验收；文件存在不代表真实模型及发布验收已经通过。
+
+```text
+scripts/probe-native-sessions.ts         # 隔离假中转的原生准入探针
+scripts/probe-native-lifecycle.ts        # Claude原生命令绕过准入的隔离复现
+tests/unit/native-session-probe.test.ts # 阻断证据分类回归
+tests/unit/native-lifecycle-probe.test.ts # 本地副作用与生命周期证据分类回归
+```
+
+```text
+scripts/probe-structured-sessions.ts     # 三种实际CLI的结构化创建与恢复探针
+scripts/structured-probe-support.ts     # 隔离假接口和探针资源管理
+tests/unit/structured-session-probe.test.ts # 结构化探针证据分类回归
+```
+
+终端会话故障与等待策略见 [终端维护边界](terminal-maintenance.md)。
